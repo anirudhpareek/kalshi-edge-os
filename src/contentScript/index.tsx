@@ -135,6 +135,56 @@ function getPageTicker(): string | null {
 let currentRoot: ReactDOM.Root | null = null;
 let lastInitUrl = '';
 
+const WRAPPER_ID = 'kalshi-intel-wrapper';
+const PAGE_CONTENT_ID = 'kalshi-intel-page-content';
+
+/**
+ * Wraps the entire page body content in a flex container.
+ * This allows the panel to push page content rather than overlay it.
+ */
+function wrapPageContent(): HTMLElement {
+  // Check if already wrapped
+  let wrapper = document.getElementById(WRAPPER_ID);
+  if (wrapper) return wrapper;
+
+  // Create wrapper
+  wrapper = document.createElement('div');
+  wrapper.id = WRAPPER_ID;
+  wrapper.style.cssText = [
+    'display: flex',
+    'flex-direction: row',
+    'min-height: 100vh',
+    'width: 100%',
+  ].join(';');
+
+  // Create page content container
+  const pageContent = document.createElement('div');
+  pageContent.id = PAGE_CONTENT_ID;
+  pageContent.style.cssText = [
+    'flex: 1',
+    'min-width: 0',
+    'overflow-x: hidden',
+    'transition: all 0.2s ease',
+  ].join(';');
+
+  // Move all body children to page content
+  while (document.body.firstChild) {
+    pageContent.appendChild(document.body.firstChild);
+  }
+
+  wrapper.appendChild(pageContent);
+  document.body.appendChild(wrapper);
+
+  // Reset body styles for flex layout
+  document.body.style.cssText = [
+    'margin: 0',
+    'padding: 0',
+    'overflow-x: hidden',
+  ].join(';');
+
+  return wrapper;
+}
+
 function init(): void {
   const url = window.location.href;
   if (!url.includes('kalshi.com')) return;
@@ -146,19 +196,21 @@ function init(): void {
     currentRoot = null;
   }
 
-  // Create host element
+  // Wrap page content first
+  const wrapper = wrapPageContent();
+
+  // Create host element (as flex sibling to page content)
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.cssText = [
-    'position: fixed',
-    'top: 0',
-    'right: 0',
+    'flex-shrink: 0',
     'height: 100vh',
+    'position: sticky',
+    'top: 0',
     'z-index: 2147483647',
-    'pointer-events: none',
     'font-family: system-ui, -apple-system, sans-serif',
   ].join(';');
-  document.body.appendChild(host);
+  wrapper.appendChild(host);
 
   // Attach shadow DOM for CSS isolation
   const shadow = host.attachShadow({ mode: 'open' });
@@ -171,7 +223,7 @@ function init(): void {
   // Mount container
   const container = document.createElement('div');
   container.id = 'kalshi-intel-root';
-  container.style.cssText = 'pointer-events: auto; height: 100%; display: flex;';
+  container.style.cssText = 'height: 100%; display: flex;';
   shadow.appendChild(container);
 
   const ticker = getPageTicker();

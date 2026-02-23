@@ -119,8 +119,17 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
   return (
     <div
       className={`kil-panel ${collapsed ? 'collapsed' : ''}`}
-      style={{ width: collapsed ? 36 : width }}
+      style={{ width: collapsed ? 0 : width }}
     >
+      {/* Toggle button (attached to panel edge) */}
+      <button
+        className="kil-toggle-btn"
+        onClick={handleToggle}
+        title={collapsed ? 'Open panel (Ctrl+Shift+K)' : 'Close panel (Ctrl+Shift+K)'}
+      >
+        <CollapseIcon collapsed={collapsed} />
+      </button>
+
       {/* Resize handle */}
       {!collapsed && (
         <div
@@ -129,15 +138,6 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
           title="Drag to resize"
         />
       )}
-
-      {/* Toggle button (outside panel edge) */}
-      <button
-        className="kil-toggle-btn"
-        onClick={handleToggle}
-        title={collapsed ? 'Open panel (Ctrl+Shift+K)' : 'Close panel (Ctrl+Shift+K)'}
-      >
-        <CollapseIcon collapsed={collapsed} />
-      </button>
 
       {/* Panel content */}
       <div className="kil-panel-inner">
