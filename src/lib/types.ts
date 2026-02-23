@@ -41,10 +41,16 @@ export interface PricePoint {
 
 export interface RelatedMarket {
   ticker: string;
+  eventTicker: string;
+  seriesTicker: string;
   title: string;
   impliedProbability: number;
   volume: number;
   status: string;
+  /** Canonical URL for this market. Null if we can't construct a reliable URL. */
+  url: string | null;
+  /** Whether the URL has been validated as working (true/false/null=not checked) */
+  urlValid: boolean | null;
 }
 
 export interface NewsItem {

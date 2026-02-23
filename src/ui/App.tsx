@@ -156,6 +156,8 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
           <RelatedMarketsBlock
             markets={related}
             loading={relatedLoading}
+            currentMarketTicker={market?.ticker}
+            devMode={false} // Set to true to enable dev validation button
           />
         );
 

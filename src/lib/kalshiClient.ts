@@ -4,6 +4,7 @@
  * Base URL: https://api.elections.kalshi.com/trade-api/v2
  */
 import type { MarketModel, RelatedMarket, KalshiRawMarket, KalshiRawEvent } from './types';
+import { getCanonicalMarketUrl } from './urls';
 
 const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
 
@@ -187,45 +188,87 @@ export async function fetchMarketForURL(url: string): Promise<MarketModel | null
 
 // ─── Related Markets ──────────────────────────────────────────────────────────
 
-export async function fetchRelatedMarkets(market: MarketModel, limit = 10): Promise<RelatedMarket[]> {
-  // Strategy: search by event_ticker first (same event = definitely related),
-  // then by series_ticker, then by keyword overlap in category + tags.
+/**
+ * Fetch related markets for a given market.
+ *
+ * Strategy:
+ * 1. Same event (most related)
+ * 2. Same series
+ * 3. Keyword overlap in title
+ *
+ * Only includes markets that have a resolvable canonical URL.
+ * Continues fetching until we have minValid (5) valid links or exhaust candidates.
+ */
+export async function fetchRelatedMarkets(
+  market: MarketModel,
+  limit = 10,
+  minValid = 5
+): Promise<RelatedMarket[]> {
   const results: RelatedMarket[] = [];
   const seen = new Set<string>([market.ticker]);
 
-  // 1. Same event
+  /**
+   * Add a market to results if it has a valid URL and we haven't seen it.
+   * Returns true if added.
+   */
+  function tryAdd(raw: KalshiRawMarket): boolean {
+    if (seen.has(raw.ticker)) return false;
+
+    const related = toRelated(raw);
+
+    // Only include markets with a valid canonical URL
+    if (!related.url) {
+      console.log('[KalshiClient] Skipping market without URL:', raw.ticker);
+      return false;
+    }
+
+    seen.add(raw.ticker);
+    results.push(related);
+    return true;
+  }
+
+  // 1. Same event (highest relevance)
   if (market.eventTicker) {
     try {
-      const data = await apiFetch<MarketsListResponse>(`/markets?event_ticker=${market.eventTicker}&limit=20`);
+      const data = await apiFetch<MarketsListResponse>(
+        `/markets?event_ticker=${market.eventTicker}&limit=30`
+      );
       for (const m of data.markets ?? []) {
-        if (!seen.has(m.ticker) && results.length < limit) {
-          seen.add(m.ticker);
-          results.push(toRelated(m));
-        }
+        if (results.length >= limit) break;
+        tryAdd(m);
       }
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      console.warn('[KalshiClient] Failed to fetch event markets:', e);
+    }
   }
 
-  // 2. Same series
+  // 2. Same series (high relevance)
   if (results.length < limit && market.seriesTicker) {
     try {
-      const data = await apiFetch<MarketsListResponse>(`/markets?series_ticker=${market.seriesTicker}&limit=20`);
+      const data = await apiFetch<MarketsListResponse>(
+        `/markets?series_ticker=${market.seriesTicker}&limit=30`
+      );
       for (const m of data.markets ?? []) {
-        if (!seen.has(m.ticker) && results.length < limit) {
-          seen.add(m.ticker);
-          results.push(toRelated(m));
-        }
+        if (results.length >= limit) break;
+        tryAdd(m);
       }
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      console.warn('[KalshiClient] Failed to fetch series markets:', e);
+    }
   }
 
-  // 3. Keyword fallback: title overlap
-  if (results.length < limit) {
+  // 3. Keyword fallback: title overlap (medium relevance)
+  // Only do this if we don't have enough results yet
+  if (results.length < minValid) {
     try {
-      const data = await apiFetch<MarketsListResponse>(`/markets?limit=30&status=open`);
+      const data = await apiFetch<MarketsListResponse>(`/markets?limit=50&status=open`);
       const titleWords = new Set(
-        market.title.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
+        market.title
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w.length > 3)
       );
+
       const scored = (data.markets ?? [])
         .filter((m) => !seen.has(m.ticker))
         .map((m) => {
@@ -234,16 +277,34 @@ export async function fetchRelatedMarkets(market: MarketModel, limit = 10): Prom
           return { m, overlap };
         })
         .filter(({ overlap }) => overlap > 0)
-        .sort((a, b) => b.overlap - a.overlap)
-        .slice(0, limit - results.length);
+        .sort((a, b) => b.overlap - a.overlap);
 
       for (const { m } of scored) {
-        if (!seen.has(m.ticker)) {
-          seen.add(m.ticker);
-          results.push(toRelated(m));
-        }
+        if (results.length >= limit) break;
+        tryAdd(m);
       }
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      console.warn('[KalshiClient] Failed to fetch keyword markets:', e);
+    }
+  }
+
+  // 4. If still under minValid, fetch popular open markets
+  if (results.length < minValid) {
+    try {
+      const data = await apiFetch<MarketsListResponse>(`/markets?limit=50&status=open`);
+
+      // Sort by volume to get popular markets
+      const sorted = (data.markets ?? [])
+        .filter((m) => !seen.has(m.ticker))
+        .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0));
+
+      for (const m of sorted) {
+        if (results.length >= limit) break;
+        tryAdd(m);
+      }
+    } catch (e) {
+      console.warn('[KalshiClient] Failed to fetch popular markets:', e);
+    }
   }
 
   return results.slice(0, limit);
@@ -253,11 +314,27 @@ function toRelated(raw: KalshiRawMarket): RelatedMarket {
   const yesBid = dollarsToCents(raw.yes_bid_dollars, raw.yes_bid ?? 0);
   const yesAsk = dollarsToCents(raw.yes_ask_dollars, raw.yes_ask ?? 100);
   const mid = (yesBid + yesAsk) / 2;
+
+  const eventTicker = raw.event_ticker ?? '';
+  const seriesTicker = raw.series_ticker ?? '';
+
+  // Compute canonical URL using event_ticker (most reliable)
+  const url = getCanonicalMarketUrl({
+    ticker: raw.ticker,
+    eventTicker,
+    seriesTicker,
+    title: raw.title,
+  });
+
   return {
     ticker: raw.ticker,
+    eventTicker,
+    seriesTicker,
     title: raw.title ?? raw.ticker,
     impliedProbability: mid / 100,
     volume: raw.volume ?? 0,
     status: raw.status ?? 'unknown',
+    url,
+    urlValid: null, // Not validated yet
   };
 }
