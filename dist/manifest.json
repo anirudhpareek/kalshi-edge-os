@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Kalshi Intelligence Layer",
+  "version": "1.0.0",
+  "description": "Transform Kalshi market pages into a customizable intelligence workspace.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "notifications",
+    "alarms",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://kalshi.com/*",
+    "https://*.kalshi.com/*",
+    "https://trading-api.kalshi.com/*",
+    "https://news.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://kalshi.com/*",
+        "https://*.kalshi.com/*"
+      ],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*", "chunks/*", "icons/*"],
+      "matches": ["https://kalshi.com/*", "https://*.kalshi.com/*"]
+    }
+  ]
+}

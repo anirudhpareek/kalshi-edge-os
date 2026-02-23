@@ -1,0 +1,191 @@
+/**
+ * Typed wrappers around chrome.storage.sync (prefs) and chrome.storage.local (caches).
+ */
+import type {
+  UserPrefs,
+  ThesisData,
+  Alert,
+  PricePoint,
+  MarketModel,
+  NewsItem,
+} from './types';
+import { DEFAULT_PREFS } from './types';
+
+// ─── Sync Storage: user preferences ──────────────────────────────────────────
+
+export async function getPrefs(): Promise<UserPrefs> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['prefs'], (result) => {
+      const stored = result['prefs'] as Partial<UserPrefs> | undefined;
+      resolve({ ...DEFAULT_PREFS, ...stored });
+    });
+  });
+}
+
+export async function setPrefs(prefs: Partial<UserPrefs>): Promise<void> {
+  const current = await getPrefs();
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.set({ prefs: { ...current, ...prefs } }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+export function watchPrefs(cb: (prefs: UserPrefs) => void): () => void {
+  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (area === 'sync' && changes['prefs']) {
+      const newVal = changes['prefs'].newValue as Partial<UserPrefs>;
+      cb({ ...DEFAULT_PREFS, ...newVal });
+    }
+  };
+  chrome.storage.onChanged.addListener(listener);
+  return () => chrome.storage.onChanged.removeListener(listener);
+}
+
+// ─── Local Storage: thesis (per-market) ──────────────────────────────────────
+
+function thesisKey(ticker: string) {
+  return `thesis:${ticker}`;
+}
+
+export async function getThesis(ticker: string): Promise<ThesisData | null> {
+  const key = thesisKey(ticker);
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve((result[key] as ThesisData) ?? null);
+    });
+  });
+}
+
+export async function setThesis(ticker: string, data: ThesisData): Promise<void> {
+  const key = thesisKey(ticker);
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [key]: data }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+// ─── Local Storage: alerts ────────────────────────────────────────────────────
+
+const ALERTS_KEY = 'alerts';
+
+export async function getAlerts(): Promise<Alert[]> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([ALERTS_KEY], (result) => {
+      resolve((result[ALERTS_KEY] as Alert[]) ?? []);
+    });
+  });
+}
+
+export async function saveAlerts(alerts: Alert[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [ALERTS_KEY]: alerts }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+// ─── Local Storage: market cache ─────────────────────────────────────────────
+
+function marketCacheKey(ticker: string) {
+  return `market:${ticker}`;
+}
+
+export interface MarketCache {
+  market: MarketModel;
+  fetchedAt: number;
+}
+
+export async function getCachedMarket(ticker: string): Promise<MarketCache | null> {
+  const key = marketCacheKey(ticker);
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve((result[key] as MarketCache) ?? null);
+    });
+  });
+}
+
+export async function setCachedMarket(ticker: string, market: MarketModel): Promise<void> {
+  const key = marketCacheKey(ticker);
+  const entry: MarketCache = { market, fetchedAt: Date.now() };
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [key]: entry }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+// ─── Local Storage: price history (sparkline) ────────────────────────────────
+
+function priceHistoryKey(ticker: string) {
+  return `history:${ticker}`;
+}
+
+const MAX_HISTORY_POINTS = 120; // 1 hour at 30s intervals
+
+export async function appendPricePoint(ticker: string, price: number): Promise<void> {
+  const key = priceHistoryKey(ticker);
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([key], (result) => {
+      const history: PricePoint[] = (result[key] as PricePoint[]) ?? [];
+      history.push({ timestamp: Date.now(), price });
+      // Keep only the last MAX_HISTORY_POINTS
+      const trimmed = history.slice(-MAX_HISTORY_POINTS);
+      chrome.storage.local.set({ [key]: trimmed }, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve();
+      });
+    });
+  });
+}
+
+export async function getPriceHistory(ticker: string): Promise<PricePoint[]> {
+  const key = priceHistoryKey(ticker);
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve((result[key] as PricePoint[]) ?? []);
+    });
+  });
+}
+
+// ─── Local Storage: news cache ────────────────────────────────────────────────
+
+function newsCacheKey(query: string) {
+  return `news:${query.toLowerCase().replace(/\s+/g, '_').slice(0, 60)}`;
+}
+
+export interface NewsCache {
+  items: NewsItem[];
+  fetchedAt: number;
+  query: string;
+}
+
+const NEWS_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+export async function getCachedNews(query: string): Promise<NewsItem[] | null> {
+  const key = newsCacheKey(query);
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      const cache = result[key] as NewsCache | undefined;
+      if (!cache) return resolve(null);
+      if (Date.now() - cache.fetchedAt > NEWS_TTL_MS) return resolve(null);
+      resolve(cache.items);
+    });
+  });
+}
+
+export async function setCachedNews(query: string, items: NewsItem[]): Promise<void> {
+  const key = newsCacheKey(query);
+  const entry: NewsCache = { items, fetchedAt: Date.now(), query };
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [key]: entry }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
