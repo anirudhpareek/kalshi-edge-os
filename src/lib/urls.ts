@@ -1,12 +1,11 @@
 /**
  * Canonical URL construction for Kalshi markets.
  *
- * Kalshi URL patterns:
- *   - Events: https://kalshi.com/events/{event_ticker}
- *   - Markets page: https://kalshi.com/markets/{series}/{slug}/{event_ticker}
+ * Kalshi URL pattern:
+ *   /markets/{series}/{slug}/{event-ticker}
+ *   e.g. /markets/kxbtcd/bitcoin-price-abovebelow/kxbtcd-26feb2209
  *
- * Market tickers (e.g., "KXBTCD-26FEB22-T50000") are internal API identifiers
- * and do NOT work as URL slugs. Event tickers are the correct URL identifier.
+ * We need: series_ticker, title (to generate slug), and event_ticker
  */
 
 export interface MarketUrlData {
@@ -17,19 +16,44 @@ export interface MarketUrlData {
 }
 
 /**
+ * Convert a title to a URL-friendly slug.
+ * "Bitcoin Price Above/Below?" -> "bitcoin-price-abovebelow"
+ */
+function titleToSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-')          // Replace spaces with hyphens
+    .replace(/-+/g, '-')           // Collapse multiple hyphens
+    .replace(/^-|-$/g, '');        // Trim leading/trailing hyphens
+}
+
+/**
  * Get the canonical Kalshi URL for a market.
  * Returns null if we don't have enough data to build a reliable URL.
+ *
+ * URL format: /markets/{series}/{slug}/{event-ticker}
  */
 export function getCanonicalMarketUrl(market: MarketUrlData): string | null {
-  // Primary: Use event_ticker - this is the most reliable URL format
-  if (market.eventTicker) {
-    return `https://kalshi.com/events/${market.eventTicker}`;
+  // Need all three: series_ticker, title (for slug), and event_ticker
+  if (market.seriesTicker && market.title && market.eventTicker) {
+    const series = market.seriesTicker.toLowerCase();
+    const slug = titleToSlug(market.title);
+    const eventTicker = market.eventTicker.toLowerCase();
+
+    return `https://kalshi.com/markets/${series}/${slug}/${eventTicker}`;
   }
 
-  // Fallback: Use series_ticker for series-level pages
-  // Note: This goes to a series overview, not a specific market
-  if (market.seriesTicker) {
-    return `https://kalshi.com/markets/${market.seriesTicker.toLowerCase()}`;
+  // Fallback: Try just series + event_ticker (Kalshi might redirect)
+  if (market.seriesTicker && market.eventTicker) {
+    const series = market.seriesTicker.toLowerCase();
+    const eventTicker = market.eventTicker.toLowerCase();
+    return `https://kalshi.com/markets/${series}/${eventTicker}`;
+  }
+
+  // Last resort: event page (may or may not work)
+  if (market.eventTicker) {
+    return `https://kalshi.com/events/${market.eventTicker.toLowerCase()}`;
   }
 
   // Cannot construct a reliable URL
