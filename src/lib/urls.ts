@@ -5,7 +5,7 @@
  *   /markets/{series}/{slug}/{event-ticker}
  *   e.g. /markets/kxbtcd/bitcoin-price-abovebelow/kxbtcd-26feb2209
  *
- * We need: series_ticker, title (to generate slug), and event_ticker
+ * We need: series_ticker (or extract from event_ticker), title (to generate slug), and event_ticker
  */
 
 export interface MarketUrlData {
@@ -29,35 +29,39 @@ function titleToSlug(title: string): string {
 }
 
 /**
+ * Extract series from event_ticker when series_ticker is not available.
+ * Event tickers follow pattern: SERIES-SUFFIX (e.g., KXBTCD-26FEB22)
+ * Series is the alphabetic prefix before any numbers or hyphens.
+ */
+function extractSeriesFromEventTicker(eventTicker: string): string | null {
+  // Match the alphabetic prefix (series is usually all caps letters)
+  const match = eventTicker.match(/^([A-Z]+)/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+/**
  * Get the canonical Kalshi URL for a market.
  * Returns null if we don't have enough data to build a reliable URL.
  *
  * URL format: /markets/{series}/{slug}/{event-ticker}
  */
 export function getCanonicalMarketUrl(market: MarketUrlData): string | null {
-  // Need all three: series_ticker, title (for slug), and event_ticker
-  if (market.seriesTicker && market.title && market.eventTicker) {
-    const series = market.seriesTicker.toLowerCase();
-    const slug = titleToSlug(market.title);
-    const eventTicker = market.eventTicker.toLowerCase();
-
-    return `https://kalshi.com/markets/${series}/${slug}/${eventTicker}`;
+  if (!market.eventTicker || !market.title) {
+    return null;
   }
 
-  // Fallback: Try just series + event_ticker (Kalshi might redirect)
-  if (market.seriesTicker && market.eventTicker) {
-    const series = market.seriesTicker.toLowerCase();
-    const eventTicker = market.eventTicker.toLowerCase();
-    return `https://kalshi.com/markets/${series}/${eventTicker}`;
+  // Get series: prefer explicit series_ticker, otherwise extract from event_ticker
+  const series = market.seriesTicker?.toLowerCase()
+    || extractSeriesFromEventTicker(market.eventTicker);
+
+  if (!series) {
+    return null;
   }
 
-  // Last resort: event page (may or may not work)
-  if (market.eventTicker) {
-    return `https://kalshi.com/events/${market.eventTicker.toLowerCase()}`;
-  }
+  const slug = titleToSlug(market.title);
+  const eventTicker = market.eventTicker.toLowerCase();
 
-  // Cannot construct a reliable URL
-  return null;
+  return `https://kalshi.com/markets/${series}/${slug}/${eventTicker}`;
 }
 
 /**
