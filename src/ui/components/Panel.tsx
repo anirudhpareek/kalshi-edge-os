@@ -148,7 +148,7 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
             <button
               className="kil-icon-btn"
               onClick={openSettings}
-              title="Settings"
+              title="Settings (Theme, Blocks, Alerts)"
             >
               <SettingsIcon />
             </button>

@@ -92,6 +92,9 @@ export function ThesisBlock({ thesis, onUpdate }: Props) {
 
   return (
     <div>
+      <div className="kil-thesis-helper">
+        Record your thesis before trading. This helps track your reasoning over time.
+      </div>
       <ThesisField
         label="My Probability"
         placeholder="e.g. 68%, or range 60-75%"

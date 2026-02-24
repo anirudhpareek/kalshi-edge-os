@@ -36,6 +36,13 @@ function formatAlertDesc(alert: Alert): string {
   return `Moves ${price} in ${alert.timeWindowMinutes ?? 5}min`;
 }
 
+const PRESETS = [
+  { label: '30%', condition: 'above' as AlertCondition, threshold: 30 },
+  { label: '50%', condition: 'above' as AlertCondition, threshold: 50 },
+  { label: '70%', condition: 'above' as AlertCondition, threshold: 70 },
+  { label: '±10%', condition: 'move' as AlertCondition, threshold: 10, timeWindow: 5 },
+];
+
 export function AlertsBlock({ market }: Props) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [newAlert, setNewAlert] = useState<NewAlertState>(DEFAULT_NEW);
@@ -90,8 +97,30 @@ export function AlertsBlock({ market }: Props) {
     setAlerts((prev) => prev.map((a) => a.id === alert.id ? updated : a));
   };
 
+  const handlePreset = (preset: typeof PRESETS[0]) => {
+    setNewAlert({
+      condition: preset.condition,
+      threshold: String(preset.threshold),
+      timeWindow: preset.timeWindow ? String(preset.timeWindow) : '5',
+    });
+  };
+
   return (
     <div>
+      {/* Preset buttons */}
+      <div className="kil-alert-presets">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset.label}
+            className="kil-preset-btn"
+            onClick={() => handlePreset(preset)}
+            title={preset.condition === 'move' ? `Move ${preset.threshold}% in ${preset.timeWindow}min` : `Yes price ${preset.condition} ${preset.threshold}%`}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
       {/* Add form */}
       <div className="kil-alert-form">
         <div className="kil-alert-row">

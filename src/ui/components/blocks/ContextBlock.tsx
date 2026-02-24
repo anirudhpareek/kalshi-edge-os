@@ -23,7 +23,10 @@ function timeAgo(iso: string): string {
   }
 }
 
+const INITIAL_NEWS_COUNT = 4;
+
 export function ContextBlock({ news, loading, error, bullets, bulletsLoading, llmEnabled }: Props) {
+  const [expanded, setExpanded] = React.useState(false);
   if (loading && news.length === 0) {
     return (
       <div className="kil-skeleton-group">
@@ -70,7 +73,7 @@ export function ContextBlock({ news, loading, error, bullets, bulletsLoading, ll
 
       {/* Headlines */}
       <ul className="kil-news-list">
-        {news.slice(0, 8).map((item, i) => (
+        {news.slice(0, expanded ? 8 : INITIAL_NEWS_COUNT).map((item, i) => (
           <li key={i} className="kil-news-item">
             <a
               className="kil-news-link"
@@ -91,6 +94,14 @@ export function ContextBlock({ news, loading, error, bullets, bulletsLoading, ll
           </li>
         ))}
       </ul>
+      {news.length > INITIAL_NEWS_COUNT && (
+        <button
+          className="kil-show-more"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show less' : `Show ${news.length - INITIAL_NEWS_COUNT} more`}
+        </button>
+      )}
     </div>
   );
 }

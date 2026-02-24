@@ -14,6 +14,8 @@ interface ValidatedMarket extends RelatedMarket {
   validationChecked: boolean;
 }
 
+const INITIAL_MARKET_COUNT = 5;
+
 function ProbBar({ value }: { value: number }) {
   const pct = (value * 100).toFixed(0);
   const color =
@@ -64,6 +66,7 @@ export function RelatedMarketsBlock({
   );
   const [validating, setValidating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   // Convert markets to validated markets and run validation
   useEffect(() => {
@@ -180,6 +183,12 @@ export function RelatedMarketsBlock({
     (m) => !m.url || m.urlValid === false
   );
 
+  // Combined for display with show more logic
+  const allLinks = [...validLinks, ...invalidLinks];
+  const displayLinks = expanded ? allLinks : allLinks.slice(0, INITIAL_MARKET_COUNT);
+  const displayValid = displayLinks.filter((m) => m.url && m.urlValid !== false);
+  const displayInvalid = displayLinks.filter((m) => !m.url || m.urlValid === false);
+
   return (
     <div>
       {/* Dev mode validation button */}
@@ -210,7 +219,7 @@ export function RelatedMarketsBlock({
 
       <ul className="kil-related-list">
         {/* Valid links - clickable */}
-        {validLinks.map((m) => (
+        {displayValid.map((m) => (
           <li key={m.ticker}>
             <a
               className="kil-related-item"
@@ -236,7 +245,7 @@ export function RelatedMarketsBlock({
         ))}
 
         {/* Invalid links - not clickable, with report button */}
-        {invalidLinks.map((m) => (
+        {displayInvalid.map((m) => (
           <li key={m.ticker}>
             <div
               className="kil-related-item"
@@ -295,6 +304,16 @@ export function RelatedMarketsBlock({
           </li>
         ))}
       </ul>
+
+      {/* Show more button */}
+      {allLinks.length > INITIAL_MARKET_COUNT && (
+        <button
+          className="kil-show-more"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show less' : `Show ${allLinks.length - INITIAL_MARKET_COUNT} more`}
+        </button>
+      )}
 
       {/* Summary of unavailable links */}
       {invalidLinks.length > 0 && (
