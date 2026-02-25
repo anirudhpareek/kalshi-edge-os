@@ -17,8 +17,9 @@
   "host_permissions": [
     "https://kalshi.com/*",
     "https://*.kalshi.com/*",
-    "https://trading-api.kalshi.com/*",
-    "https://news.google.com/*"
+    "https://api.elections.kalshi.com/*",
+    "https://news.google.com/*",
+    "https://api.anthropic.com/*"
   ],
   "content_scripts": [
     {
