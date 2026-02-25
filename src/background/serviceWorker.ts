@@ -7,6 +7,7 @@ import {
   fetchMarketByTicker,
   fetchRelatedMarkets,
   fetchMarketForURL,
+  fetchEventWithMarkets,
 } from '../lib/kalshiClient';
 import { fetchNews, summarizeWithLLM } from '../lib/newsClient';
 import {
@@ -132,6 +133,12 @@ async function handleMessage(msg: Msg): Promise<MsgResponse> {
       }
 
       return { ok: false, error: 'Missing ticker or url' };
+    }
+
+    case 'FETCH_EVENT': {
+      const { eventTicker } = msg.payload as { eventTicker: string };
+      const event = await fetchEventWithMarkets(eventTicker);
+      return { ok: true, data: event };
     }
 
     case 'FETCH_RELATED': {

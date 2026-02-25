@@ -5,6 +5,7 @@ import { DEFAULT_PREFS } from '../lib/types';
 
 const BLOCK_LABELS: Record<string, string> = {
   intelligence: 'Market Intelligence',
+  outcomes: 'All Outcomes',
   context: 'Context (News)',
   thesis: 'My Thesis',
   related: 'Related Markets',

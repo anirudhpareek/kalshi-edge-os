@@ -3,7 +3,7 @@
  * All fetches are performed from the background service worker.
  * Base URL: https://api.elections.kalshi.com/trade-api/v2
  */
-import type { MarketModel, RelatedMarket, KalshiRawMarket, KalshiRawEvent } from './types';
+import type { MarketModel, RelatedMarket, EventModel, KalshiRawMarket, KalshiRawEvent } from './types';
 import { getCanonicalMarketUrl } from './urls';
 
 const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
@@ -139,6 +139,48 @@ export async function fetchEventByTicker(ticker: string): Promise<{ markets: Mar
   // Some responses nest markets inside the event, some at top level
   const rawMarkets: KalshiRawMarket[] = data.markets ?? data.event.markets ?? [];
   return { markets: rawMarkets.map(normalizeMarket) };
+}
+
+/**
+ * Fetch full event data with all outcome markets.
+ * Returns an EventModel with computed multi-outcome metadata.
+ */
+export async function fetchEventWithMarkets(eventTicker: string): Promise<EventModel | null> {
+  try {
+    const data = await apiFetch<{ event: KalshiRawEvent; markets?: KalshiRawMarket[] }>(`/events/${eventTicker}`);
+    const rawEvent = data.event;
+    const rawMarkets: KalshiRawMarket[] = data.markets ?? rawEvent.markets ?? [];
+
+    if (rawMarkets.length === 0) {
+      return null;
+    }
+
+    const markets = rawMarkets.map(normalizeMarket);
+
+    // Sort by probability (highest first)
+    markets.sort((a, b) => b.impliedProbability - a.impliedProbability);
+
+    // Compute probability sum
+    const probabilitySum = markets.reduce((sum, m) => sum + m.impliedProbability, 0);
+
+    // Arbitrage threshold: if sum deviates more than 5% from 1.0
+    const hasArbitrage = Math.abs(probabilitySum - 1.0) > 0.05;
+
+    return {
+      eventTicker: rawEvent.event_ticker,
+      seriesTicker: rawEvent.series_ticker ?? '',
+      title: rawEvent.title,
+      subtitle: rawEvent.sub_title,
+      category: rawEvent.category,
+      markets,
+      isMultiOutcome: markets.length > 1,
+      probabilitySum,
+      hasArbitrage,
+    };
+  } catch (e) {
+    console.warn('[KalshiClient] Failed to fetch event:', eventTicker, e);
+    return null;
+  }
 }
 
 export async function fetchMarketsBySeries(seriesTicker: string): Promise<{ markets: MarketModel[] }> {

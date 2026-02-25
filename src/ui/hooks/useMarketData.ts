@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { MarketModel, PricePoint, RelatedMarket, NewsItem, Msg, MsgResponse } from '../../lib/types';
+import type { MarketModel, EventModel, PricePoint, RelatedMarket, NewsItem, Msg, MsgResponse } from '../../lib/types';
 
 // ─── Messaging helper ─────────────────────────────────────────────────────────
 
@@ -170,4 +170,36 @@ export function useLLMSummary(
   }, [enabled, apiKey, news.length, marketTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { bullets, loading, error };
+}
+
+// ─── Event Data hook (multi-outcome markets) ─────────────────────────────────
+
+export function useEventData(eventTicker: string | null) {
+  const [event, setEvent] = useState<EventModel | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!eventTicker) {
+      setEvent(null);
+      return;
+    }
+
+    setLoading(true);
+    sendMsg<EventModel | null>({
+      type: 'FETCH_EVENT',
+      payload: { eventTicker },
+    }).then((res) => {
+      if (res.ok && res.data) {
+        setEvent(res.data);
+        setError(null);
+      } else {
+        setEvent(null);
+        setError(res.error ?? 'Failed to load event');
+      }
+      setLoading(false);
+    });
+  }, [eventTicker]);
+
+  return { event, loading, error };
 }

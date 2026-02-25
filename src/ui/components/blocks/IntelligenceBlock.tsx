@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import type { MarketModel, PricePoint } from '../../../lib/types';
+import type { MarketModel, EventModel, PricePoint } from '../../../lib/types';
 
 interface Props {
   market: MarketModel;
   history: PricePoint[];
+  event?: EventModel | null;
 }
 
 function formatNumber(n: number): string {
@@ -103,7 +104,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function IntelligenceBlock({ market, history }: Props) {
+export function IntelligenceBlock({ market, history, event }: Props) {
   const probPct = market.impliedProbability * 100;
   const spread = market.yesAsk - market.yesBid;
   const lastUpdated = useMemo(() => {
@@ -152,6 +153,18 @@ export function IntelligenceBlock({ market, history }: Props) {
           style={{ width: `${probPct}%` }}
         />
       </div>
+
+      {/* Multi-outcome indicator */}
+      {event?.isMultiOutcome && (
+        <div className="kil-multi-outcome-hint">
+          Part of {event.markets.length}-outcome event
+          {event.hasArbitrage && (
+            <span className="kil-sum-inline">
+              ({'\u03A3'} {(event.probabilitySum * 100).toFixed(1)}%)
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="kil-stats-grid">

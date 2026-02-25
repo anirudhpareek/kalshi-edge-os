@@ -53,6 +53,24 @@ export interface RelatedMarket {
   urlValid: boolean | null;
 }
 
+// ─── Multi-Outcome Events ─────────────────────────────────────────────────────
+
+export interface EventModel {
+  eventTicker: string;
+  seriesTicker: string;
+  title: string;
+  subtitle?: string;
+  category?: string;
+  /** All outcome markets in this event */
+  markets: MarketModel[];
+  /** True if this event has more than one outcome market */
+  isMultiOutcome: boolean;
+  /** Sum of implied probabilities across all outcomes (should be ~1.0) */
+  probabilitySum: number;
+  /** True if probability sum deviates significantly from 1.0 (potential arbitrage) */
+  hasArbitrage: boolean;
+}
+
 export interface NewsItem {
   title: string;
   url: string;
@@ -88,7 +106,7 @@ export interface Alert {
 
 // ─── Block System ─────────────────────────────────────────────────────────────
 
-export type BlockType = 'intelligence' | 'context' | 'thesis' | 'related' | 'alerts';
+export type BlockType = 'intelligence' | 'outcomes' | 'context' | 'thesis' | 'related' | 'alerts';
 export type BlockSize = 'small' | 'medium' | 'large';
 
 export interface BlockConfig {
@@ -112,10 +130,11 @@ export interface UserPrefs {
 
 export const DEFAULT_BLOCKS: BlockConfig[] = [
   { id: 'intelligence', visible: true,  size: 'medium', order: 0 },
-  { id: 'context',      visible: true,  size: 'medium', order: 1 },
-  { id: 'thesis',       visible: true,  size: 'medium', order: 2 },
-  { id: 'related',      visible: true,  size: 'small',  order: 3 },
-  { id: 'alerts',       visible: true,  size: 'small',  order: 4 },
+  { id: 'outcomes',     visible: true,  size: 'small',  order: 1 },
+  { id: 'context',      visible: true,  size: 'medium', order: 2 },
+  { id: 'thesis',       visible: true,  size: 'medium', order: 3 },
+  { id: 'related',      visible: true,  size: 'small',  order: 4 },
+  { id: 'alerts',       visible: true,  size: 'small',  order: 5 },
 ];
 
 export const DEFAULT_PREFS: UserPrefs = {
@@ -132,6 +151,7 @@ export const DEFAULT_PREFS: UserPrefs = {
 
 export type MessageType =
   | 'FETCH_MARKET'
+  | 'FETCH_EVENT'
   | 'FETCH_RELATED'
   | 'FETCH_NEWS'
   | 'SUMMARIZE_NEWS'

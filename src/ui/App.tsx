@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Panel } from './components/Panel';
 import { BlockWrapper } from './components/BlockWrapper';
 import { IntelligenceBlock } from './components/blocks/IntelligenceBlock';
+import { OutcomesBlock } from './components/blocks/OutcomesBlock';
 import { ContextBlock } from './components/blocks/ContextBlock';
 import { ThesisBlock } from './components/blocks/ThesisBlock';
 import { RelatedMarketsBlock } from './components/blocks/RelatedMarketsBlock';
@@ -10,6 +11,7 @@ import { usePrefs } from './hooks/useStorage';
 import { useThesis } from './hooks/useStorage';
 import {
   useMarketData,
+  useEventData,
   usePriceHistory,
   useRelatedMarkets,
   useNews,
@@ -47,6 +49,7 @@ function NonMarketState() {
 
 const BLOCK_LABELS: Record<string, string> = {
   intelligence: 'Market Intelligence',
+  outcomes: 'All Outcomes',
   context: 'Context',
   thesis: 'My Thesis',
   related: 'Related Markets',
@@ -61,6 +64,9 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
     marketTicker,
     isMarketPage ? currentUrl : ''
   );
+
+  // Fetch full event data for multi-outcome markets
+  const { event, loading: eventLoading } = useEventData(market?.eventTicker ?? null);
 
   const history = usePriceHistory(market?.ticker ?? null);
   const { related, loading: relatedLoading } = useRelatedMarkets(market);
@@ -126,9 +132,18 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
     switch (id) {
       case 'intelligence':
         return market ? (
-          <IntelligenceBlock market={market} history={history} />
+          <IntelligenceBlock market={market} history={history} event={event} />
         ) : (
           <LoadingSkeleton />
+        );
+
+      case 'outcomes':
+        return (
+          <OutcomesBlock
+            event={event}
+            loading={eventLoading}
+            currentMarketTicker={market?.ticker}
+          />
         );
 
       case 'context':
