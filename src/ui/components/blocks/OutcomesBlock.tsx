@@ -79,7 +79,16 @@ export function OutcomesBlock({ event, loading, currentMarketTicker }: Props) {
         <span className="kil-outcomes-count">
           {markets.length} outcomes
         </span>
-        <span className={`kil-sum-badge ${hasArbitrage ? 'warning' : ''}`}>
+        <span
+          className={`kil-sum-badge ${hasArbitrage ? 'warning' : ''}`}
+          title={`Probabilities sum to ${formatPct(probabilitySum)}. ${
+            hasArbitrage
+              ? probabilitySum > 1
+                ? 'Sum > 100% suggests overpricing.'
+                : 'Sum < 100% suggests potential value.'
+              : 'Near 100% indicates efficient pricing.'
+          }`}
+        >
           {'\u03A3'} {formatPct(probabilitySum)}
         </span>
       </div>
