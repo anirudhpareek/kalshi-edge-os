@@ -223,3 +223,4 @@ export interface KalshiRawEvent {
   category?: string;
   markets?: KalshiRawMarket[];
 }
+
