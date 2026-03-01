@@ -1096,11 +1096,69 @@
 
 .kil-review-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 120px 1fr auto;
   gap: 8px;
   font-size: 11px;
   color: var(--text-secondary);
   padding: 4px 0;
+  align-items: center;
+}
+
+.kil-review-row-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.kil-review-row-count {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.kil-review-cal-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.kil-review-cal-hit {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(0, 200, 150, 0.35);
+}
+
+.kil-review-cal-ideal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-warn);
+  opacity: 0.9;
+}
+
+.kil-review-insight {
+  font-size: 11px;
+  line-height: 1.4;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 7px 8px;
+  margin-bottom: 10px;
+}
+
+.kil-review-insight.ok {
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+}
+
+.kil-review-insight.warn {
+  color: var(--accent-warn);
+  background: rgba(240, 160, 0, 0.1);
+  border-color: rgba(240, 160, 0, 0.4);
 }
 
 .kil-review-list {
@@ -1129,6 +1187,10 @@
   flex-wrap: wrap;
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+.kil-review-bad {
+  color: var(--accent-danger);
 }
 
 /* ─── Show More Button ──────────────────────────────────────────────────── */

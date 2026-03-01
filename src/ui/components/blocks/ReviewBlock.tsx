@@ -23,6 +23,15 @@ interface Props {
   thesis: ThesisData | null;
 }
 
+interface CalibrationBucket {
+  label: string;
+  min: number;
+  max: number;
+  midpoint: number;
+  n: number;
+  hitRate: number | null;
+}
+
 export function ReviewBlock({ market, thesis }: Props) {
   const [forecasts, setForecasts] = useState<ForecastRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,7 +92,7 @@ export function ReviewBlock({ market, thesis }: Props) {
       ? resolved.reduce((sum, f) => sum + (f.brierScore ?? 0), 0) / resolved.length
       : null;
 
-    const buckets = [
+    const buckets: CalibrationBucket[] = [
       { label: '0-20%', min: 0, max: 0.2 },
       { label: '20-40%', min: 0.2, max: 0.4 },
       { label: '40-60%', min: 0.4, max: 0.6 },
@@ -94,18 +103,50 @@ export function ReviewBlock({ market, thesis }: Props) {
         (f) => f.forecastProbability >= bucket.min && f.forecastProbability < bucket.max
       );
       if (inBucket.length === 0) {
-        return { ...bucket, n: 0, hitRate: null as number | null };
+        return {
+          ...bucket,
+          midpoint: Math.min(1, bucket.min + (bucket.max - bucket.min) / 2),
+          n: 0,
+          hitRate: null as number | null,
+        };
       }
       const hits = inBucket.filter((f) => f.outcome === 1).length;
-      return { ...bucket, n: inBucket.length, hitRate: hits / inBucket.length };
+      return {
+        ...bucket,
+        midpoint: Math.min(1, bucket.min + (bucket.max - bucket.min) / 2),
+        n: inBucket.length,
+        hitRate: hits / inBucket.length,
+      };
     });
+
+    const weightedCalibrationGap = buckets.reduce((sum, bucket) => {
+      if (bucket.hitRate == null || resolved.length === 0) return sum;
+      return sum + (Math.abs(bucket.hitRate - bucket.midpoint) * bucket.n) / resolved.length;
+    }, 0);
+
+    const worstMistakes = [...resolved]
+      .sort((a, b) => (b.brierScore ?? 0) - (a.brierScore ?? 0))
+      .slice(0, 5);
+
+    const sharpPredictions = resolved.filter(
+      (r) => r.forecastProbability <= 0.2 || r.forecastProbability >= 0.8
+    );
+    const sharpErrorRate = sharpPredictions.length > 0
+      ? sharpPredictions.filter((r) => (r.brierScore ?? 0) >= 0.64).length / sharpPredictions.length
+      : null;
+
+    const overconfident = sharpErrorRate != null && sharpErrorRate > 0.2;
 
     return {
       total: forecasts.length,
       resolved: resolved.length,
       unresolved,
       meanBrier,
+      weightedCalibrationGap,
+      overconfident,
+      sharpErrorRate,
       buckets,
+      worstMistakes,
       recent: forecasts.slice(0, 8),
     };
   }, [forecasts]);
@@ -147,17 +188,75 @@ export function ReviewBlock({ market, thesis }: Props) {
             {stats.meanBrier == null ? '-' : stats.meanBrier.toFixed(3)}
           </div>
         </div>
+        <div className="kil-stat">
+          <div className="kil-stat-label">Calibration Gap</div>
+          <div className="kil-stat-value">
+            {stats.resolved === 0 ? '-' : `${(stats.weightedCalibrationGap * 100).toFixed(1)}%`}
+          </div>
+        </div>
+        <div className="kil-stat">
+          <div className="kil-stat-label">Sharp Error</div>
+          <div className="kil-stat-value">
+            {stats.sharpErrorRate == null ? '-' : `${(stats.sharpErrorRate * 100).toFixed(0)}%`}
+          </div>
+        </div>
       </div>
+
+      {stats.resolved > 0 && (
+        <div className={`kil-review-insight ${stats.overconfident ? 'warn' : 'ok'}`}>
+          {stats.overconfident
+            ? 'Model signal: overconfidence risk detected on high-conviction calls.'
+            : 'Model signal: confidence profile is stable at current sample size.'}
+        </div>
+      )}
 
       <div className="kil-review-calibration">
         <div className="kil-sparkline-label">Calibration Buckets</div>
         {stats.buckets.map((bucket) => (
           <div key={bucket.label} className="kil-review-row">
-            <span>{bucket.label}</span>
-            <span>{bucket.n} preds</span>
-            <span>{bucket.hitRate == null ? '-' : `${(bucket.hitRate * 100).toFixed(0)}% hit`}</span>
+            <span className="kil-review-row-label">
+              {bucket.label}
+              <span className="kil-review-row-count">{bucket.n} preds</span>
+            </span>
+            <div className="kil-review-cal-bar">
+              <div
+                className="kil-review-cal-ideal"
+                style={{ left: `${bucket.midpoint * 100}%` }}
+                title={`Ideal ${(bucket.midpoint * 100).toFixed(0)}%`}
+              />
+              <div
+                className="kil-review-cal-hit"
+                style={{ width: `${(bucket.hitRate ?? 0) * 100}%` }}
+                title={
+                  bucket.hitRate == null
+                    ? 'No samples'
+                    : `Observed ${(bucket.hitRate * 100).toFixed(0)}%`
+                }
+              />
+            </div>
+            <span>{bucket.hitRate == null ? '-' : `${(bucket.hitRate * 100).toFixed(0)}%`}</span>
           </div>
         ))}
+      </div>
+
+      <div className="kil-review-calibration">
+        <div className="kil-sparkline-label">Top Mistakes</div>
+        {stats.worstMistakes.length === 0 ? (
+          <div className="kil-empty-state">No resolved outcomes yet.</div>
+        ) : (
+          <ul className="kil-review-list">
+            {stats.worstMistakes.map((record) => (
+              <li key={record.id} className="kil-review-item">
+                <div className="kil-review-title">{record.marketTitle}</div>
+                <div className="kil-review-meta">
+                  <span>My P {(record.forecastProbability * 100).toFixed(0)}%</span>
+                  <span>Outcome {record.outcome === 1 ? 'YES' : 'NO'}</span>
+                  <span className="kil-review-bad">Brier {(record.brierScore ?? 0).toFixed(3)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="kil-review-history">
