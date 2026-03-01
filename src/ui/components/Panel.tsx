@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { BlockConfig, UserPrefs } from '../../lib/types';
+import type { BlockConfig, UserPrefs, WorkMode } from '../../lib/types';
+import { blocksForMode } from '../../lib/types';
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
 
 const MIN_WIDTH = 280;
@@ -116,6 +117,13 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
     }
   }, []);
 
+  const setMode = useCallback((mode: WorkMode) => {
+    void onPrefsChange({
+      mode,
+      blocks: blocksForMode(mode),
+    });
+  }, [onPrefsChange]);
+
   return (
     <div
       className={`kil-panel ${collapsed ? 'collapsed' : ''}`}
@@ -143,7 +151,18 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
       <div className="kil-panel-inner">
         {/* Header */}
         <div className="kil-header">
-          <div className="kil-header-logo">Kalshi Intel</div>
+          <div className="kil-header-logo">Kalshi Edge OS</div>
+          <div className="kil-mode-switch" role="tablist" aria-label="Workspace mode">
+            <button className={`kil-mode-btn ${prefs.mode === 'quick' ? 'active' : ''}`} onClick={() => setMode('quick')}>
+              Quick
+            </button>
+            <button className={`kil-mode-btn ${prefs.mode === 'deep' ? 'active' : ''}`} onClick={() => setMode('deep')}>
+              Deep
+            </button>
+            <button className={`kil-mode-btn ${prefs.mode === 'review' ? 'active' : ''}`} onClick={() => setMode('review')}>
+              Review
+            </button>
+          </div>
           <div className="kil-header-actions">
             <button
               className="kil-icon-btn"

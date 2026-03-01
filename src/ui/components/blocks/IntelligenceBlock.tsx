@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
-import type { MarketModel, EventModel, PricePoint } from '../../../lib/types';
+import type { MarketModel, EventModel, PricePoint, ThesisData } from '../../../lib/types';
+import { parseProbabilityInput, computeEdgeMetrics } from '../../../lib/edge';
 
 interface Props {
   market: MarketModel;
   history: PricePoint[];
   event?: EventModel | null;
+  thesis?: ThesisData | null;
 }
 
 function formatNumber(n: number): string {
@@ -104,7 +106,56 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function IntelligenceBlock({ market, history, event }: Props) {
+function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
+  const trueProb = parseProbabilityInput(thesis?.myProbability ?? '');
+  if (trueProb == null) {
+    return (
+      <div className="kil-edge-card">
+        <div className="kil-edge-title">Edge Check</div>
+        <div className="kil-edge-empty">
+          Add "My Probability" in Thesis to unlock EV, break-even, and edge alerts.
+        </div>
+      </div>
+    );
+  }
+
+  const edge = computeEdgeMetrics(market, trueProb);
+  const edgePct = edge.bestEv * 100;
+  const state = edgePct >= 2 ? 'positive' : edgePct >= 0 ? 'neutral' : 'negative';
+  const verdict = edgePct >= 2 ? 'Positive edge' : edgePct >= 0 ? 'Marginal edge' : 'Negative edge';
+
+  return (
+    <div className={`kil-edge-card ${state}`}>
+      <div className="kil-edge-header">
+        <div className="kil-edge-title">Edge Check</div>
+        <div className={`kil-edge-pill ${state}`}>{verdict}</div>
+      </div>
+      <div className="kil-edge-grid">
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">My P</div>
+          <div className="kil-edge-value">{(edge.trueProbability * 100).toFixed(1)}%</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Market Mid</div>
+          <div className="kil-edge-value">{(edge.marketMidProbability * 100).toFixed(1)}%</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Best EV</div>
+          <div className={`kil-edge-value ${state}`}>{edgePct.toFixed(2)}%</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Spread</div>
+          <div className="kil-edge-value">{(edge.spread * 100).toFixed(1)}c</div>
+        </div>
+      </div>
+      <div className="kil-edge-hint">
+        Yes EV @ ask {(edge.yesEvAtAsk * 100).toFixed(2)}% | No EV @ ask {(edge.noEvAtAsk * 100).toFixed(2)}%
+      </div>
+    </div>
+  );
+}
+
+export function IntelligenceBlock({ market, history, event, thesis }: Props) {
   const probPct = market.impliedProbability * 100;
   const spread = market.yesAsk - market.yesBid;
   const lastUpdated = useMemo(() => {
@@ -153,6 +204,8 @@ export function IntelligenceBlock({ market, history, event }: Props) {
           style={{ width: `${probPct}%` }}
         />
       </div>
+
+      <EdgeCard market={market} thesis={thesis} />
 
       {/* Multi-outcome indicator */}
       {event?.isMultiOutcome && (

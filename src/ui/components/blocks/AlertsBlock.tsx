@@ -33,6 +33,8 @@ function formatAlertDesc(alert: Alert): string {
   const price = `${alert.threshold}%`;
   if (alert.condition === 'above') return `Yes price above ${price}`;
   if (alert.condition === 'below') return `Yes price below ${price}`;
+  if (alert.condition === 'edgeAbove') return `Best edge above ${price}`;
+  if (alert.condition === 'spreadWide') return `Spread above ${alert.threshold}c`;
   return `Moves ${price} in ${alert.timeWindowMinutes ?? 5}min`;
 }
 
@@ -40,6 +42,8 @@ const PRESETS = [
   { label: '30%', condition: 'above' as AlertCondition, threshold: 30 },
   { label: '50%', condition: 'above' as AlertCondition, threshold: 50 },
   { label: '70%', condition: 'above' as AlertCondition, threshold: 70 },
+  { label: 'Edge 2%', condition: 'edgeAbove' as AlertCondition, threshold: 2 },
+  { label: 'Spread 4c', condition: 'spreadWide' as AlertCondition, threshold: 4 },
   { label: '±10%', condition: 'move' as AlertCondition, threshold: 10, timeWindow: 5 },
 ];
 
@@ -62,8 +66,9 @@ export function AlertsBlock({ market }: Props) {
 
   const handleAdd = async () => {
     const threshold = parseFloat(newAlert.threshold);
-    if (isNaN(threshold) || threshold < 0 || threshold > 100) {
-      setError('Enter a valid percentage (0-100)');
+    const max = newAlert.condition === 'spreadWide' ? 50 : 100;
+    if (isNaN(threshold) || threshold < 0 || threshold > max) {
+      setError(`Enter a valid value (0-${max})`);
       return;
     }
     setError('');
@@ -132,13 +137,15 @@ export function AlertsBlock({ market }: Props) {
             <option value="above">Yes price above</option>
             <option value="below">Yes price below</option>
             <option value="move">Moves by</option>
+            <option value="edgeAbove">Best edge above</option>
+            <option value="spreadWide">Spread above (cents)</option>
           </select>
           <input
             type="number"
             className="kil-input-small"
-            placeholder="%"
+            placeholder={newAlert.condition === 'spreadWide' ? 'c' : '%'}
             min={0}
-            max={100}
+            max={newAlert.condition === 'spreadWide' ? 50 : 100}
             step={1}
             value={newAlert.threshold}
             onChange={(e) => setNewAlert((p) => ({ ...p, threshold: e.target.value }))}
@@ -200,7 +207,7 @@ export function AlertsBlock({ market }: Props) {
       )}
 
       <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text-muted)' }}>
-        Alerts notify while the browser is open. Polling every 30s.
+        Edge alerts use your Thesis probability. Alerts notify while the browser is open.
       </div>
     </div>
   );

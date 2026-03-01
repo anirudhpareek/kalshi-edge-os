@@ -7,6 +7,7 @@ import { ContextBlock } from './components/blocks/ContextBlock';
 import { ThesisBlock } from './components/blocks/ThesisBlock';
 import { RelatedMarketsBlock } from './components/blocks/RelatedMarketsBlock';
 import { AlertsBlock } from './components/blocks/AlertsBlock';
+import { ReviewBlock } from './components/blocks/ReviewBlock';
 import { usePrefs } from './hooks/useStorage';
 import { useThesis } from './hooks/useStorage';
 import {
@@ -54,16 +55,17 @@ const BLOCK_LABELS: Record<string, string> = {
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
+  review: 'Review / Learn',
 };
 
 export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps) {
   const [prefs, updatePrefs] = usePrefs();
-  const [thesis, updateThesis] = useThesis(marketTicker);
 
   const { market, loading: marketLoading, error: marketError } = useMarketData(
     marketTicker,
     isMarketPage ? currentUrl : ''
   );
+  const [thesis, updateThesis] = useThesis(market?.ticker ?? marketTicker);
 
   // Fetch full event data for multi-outcome markets
   const { event, loading: eventLoading } = useEventData(market?.eventTicker ?? null);
@@ -132,7 +134,7 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
     switch (id) {
       case 'intelligence':
         return market ? (
-          <IntelligenceBlock market={market} history={history} event={event} />
+          <IntelligenceBlock market={market} history={history} event={event} thesis={thesis} />
         ) : (
           <LoadingSkeleton />
         );
@@ -181,6 +183,14 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
           <AlertsBlock market={market} />
         ) : (
           <div className="kil-empty-state">Loading market...</div>
+        );
+
+      case 'review':
+        return (
+          <ReviewBlock
+            market={market}
+            thesis={thesis}
+          />
         );
 
       default:

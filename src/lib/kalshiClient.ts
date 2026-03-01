@@ -96,6 +96,7 @@ function normalizeMarket(raw: KalshiRawMarket): MarketModel {
     category: '',
     tags: raw.tags ?? [],
     rulesDescription: raw.rules_primary ?? '',
+    result: raw.result,
   };
 }
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kalshi Intelligence Layer",
+  "name": "Kalshi Edge OS",
   "version": "1.0.0",
-  "description": "Transform Kalshi market pages into a customizable intelligence workspace.",
+  "description": "Edge-focused Kalshi workspace with trade modes, EV checks, and alerts.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

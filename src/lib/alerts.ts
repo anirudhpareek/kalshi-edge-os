@@ -2,7 +2,9 @@
  * Alert evaluation logic. Used by the background service worker.
  */
 import type { Alert } from './types';
+import type { MarketModel } from './types';
 import { getAlerts, saveAlerts } from './storage';
+import { computeEdgeMetrics } from './edge';
 
 const ALARM_NAME = 'kalshi-poll';
 const MIN_POLL_SECONDS = 15;
@@ -51,6 +53,8 @@ export interface AlertTriggerResult {
 export function evaluateAlerts(
   alerts: Alert[],
   ticker: string,
+  market: MarketModel,
+  trueProbability: number | null,
   currentPrice: number,
   priceHistory: Array<{ timestamp: number; price: number }>
 ): AlertTriggerResult[] {
@@ -87,6 +91,21 @@ export function evaluateAlerts(
           const dir = currentPrice > baseline.price ? 'up' : 'down';
           message = `${alert.marketTitle}: Moved ${dir} ${change.toFixed(1)}% in ${alert.timeWindowMinutes}min`;
         }
+      }
+    } else if (alert.condition === 'edgeAbove') {
+      if (trueProbability != null) {
+        const edge = computeEdgeMetrics(market, trueProbability);
+        const bestEvPct = edge.bestEv * 100;
+        if (bestEvPct >= alert.threshold) {
+          fired = true;
+          message = `${alert.marketTitle}: Edge is ${bestEvPct.toFixed(2)}% (threshold ${alert.threshold}%)`;
+        }
+      }
+    } else if (alert.condition === 'spreadWide') {
+      const spreadCents = market.yesAsk - market.yesBid;
+      if (spreadCents >= alert.threshold) {
+        fired = true;
+        message = `${alert.marketTitle}: Spread widened to ${spreadCents.toFixed(1)}c`;
       }
     }
 

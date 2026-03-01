@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { UserPrefs, BlockConfig } from '../lib/types';
 import { getPrefs, setPrefs } from '../lib/storage';
-import { DEFAULT_PREFS } from '../lib/types';
+import { DEFAULT_PREFS, blocksForMode } from '../lib/types';
 
 const BLOCK_LABELS: Record<string, string> = {
   intelligence: 'Market Intelligence',
@@ -10,6 +10,7 @@ const BLOCK_LABELS: Record<string, string> = {
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
+  review: 'Review / Learn',
 };
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -68,7 +69,7 @@ export default function Options() {
     <div className={`kil-options-root ${prefs.theme === 'light' ? 'light' : ''}`}>
       <div className="kil-options-container">
         <div className="kil-options-header">
-          <h1>Kalshi Intelligence Layer</h1>
+          <h1>Kalshi Edge OS</h1>
           <p>Settings and preferences</p>
           {saved && (
             <p style={{ color: '#00c896', marginTop: 4, fontSize: 12 }}>Settings saved</p>
@@ -92,6 +93,25 @@ export default function Options() {
               <option value="system">System</option>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
+            </select>
+          </div>
+          <div className="kil-options-row">
+            <div className="kil-options-label">
+              <strong>Mode</strong>
+              <span>Quick Trade, Deep Analysis, or Review/Learning layout</span>
+            </div>
+            <select
+              className="kil-options-select"
+              style={{ width: 140 }}
+              value={prefs.mode}
+              onChange={(e) => {
+                const mode = e.target.value as UserPrefs['mode'];
+                void save({ mode, blocks: blocksForMode(mode) });
+              }}
+            >
+              <option value="quick">Quick Trade</option>
+              <option value="deep">Deep Analysis</option>
+              <option value="review">Review / Learn</option>
             </select>
           </div>
         </div>
@@ -176,6 +196,7 @@ export default function Options() {
             <p style={{ marginBottom: 6 }}>This extension stores the following data <strong>locally in your browser only</strong>:</p>
             <ul>
               <li>Your thesis notes (per market)</li>
+              <li>Your current mode and layout preferences</li>
               <li>Block layout preferences</li>
               <li>Alert configurations</li>
               <li>Cached market data (expires on fetch)</li>

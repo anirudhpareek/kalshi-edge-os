@@ -47,6 +47,7 @@ function ThesisField({
 
 export function ThesisBlock({ thesis, onUpdate }: Props) {
   const [prob, setProb] = useState('');
+  const [confidence, setConfidence] = useState('');
   const [myThesis, setMyThesis] = useState('');
   const [wouldChange, setWouldChange] = useState('');
   const [saved, setSaved] = useState(false);
@@ -57,6 +58,7 @@ export function ThesisBlock({ thesis, onUpdate }: Props) {
   useEffect(() => {
     if (thesis && !isInitialized.current) {
       setProb(thesis.myProbability ?? '');
+      setConfidence(thesis.myConfidence ?? '');
       setMyThesis(thesis.myThesis ?? '');
       setWouldChange(thesis.whatWouldChangeMyMind ?? '');
       isInitialized.current = true;
@@ -77,17 +79,42 @@ export function ThesisBlock({ thesis, onUpdate }: Props) {
 
   const handleProbChange = (v: string) => {
     setProb(v);
-    scheduleSave({ myProbability: v, myThesis, whatWouldChangeMyMind: wouldChange });
+    scheduleSave({
+      myProbability: v,
+      myConfidence: confidence,
+      myThesis,
+      whatWouldChangeMyMind: wouldChange,
+    });
+  };
+
+  const handleConfidenceChange = (v: string) => {
+    setConfidence(v);
+    scheduleSave({
+      myProbability: prob,
+      myConfidence: v,
+      myThesis,
+      whatWouldChangeMyMind: wouldChange,
+    });
   };
 
   const handleThesisChange = (v: string) => {
     setMyThesis(v);
-    scheduleSave({ myProbability: prob, myThesis: v, whatWouldChangeMyMind: wouldChange });
+    scheduleSave({
+      myProbability: prob,
+      myConfidence: confidence,
+      myThesis: v,
+      whatWouldChangeMyMind: wouldChange,
+    });
   };
 
   const handleChangeChange = (v: string) => {
     setWouldChange(v);
-    scheduleSave({ myProbability: prob, myThesis, whatWouldChangeMyMind: v });
+    scheduleSave({
+      myProbability: prob,
+      myConfidence: confidence,
+      myThesis,
+      whatWouldChangeMyMind: v,
+    });
   };
 
   return (
@@ -97,9 +124,16 @@ export function ThesisBlock({ thesis, onUpdate }: Props) {
       </div>
       <ThesisField
         label="My Probability"
-        placeholder="e.g. 68%, or range 60-75%"
+        placeholder="e.g. 68% or 0.68"
         value={prob}
         onChange={handleProbChange}
+        multiline={false}
+      />
+      <ThesisField
+        label="Confidence"
+        placeholder="e.g. 75%"
+        value={confidence}
+        onChange={handleConfidenceChange}
         multiline={false}
       />
       <ThesisField
