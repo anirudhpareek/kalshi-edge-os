@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { MarketModel, EventModel, PricePoint, RelatedMarket, NewsItem, Msg, MsgResponse } from '../../lib/types';
+import type {
+  MarketModel,
+  EventModel,
+  PricePoint,
+  RelatedMarket,
+  NewsItem,
+  OrderBook,
+  Msg,
+  MsgResponse,
+} from '../../lib/types';
 
 // ─── Messaging helper ─────────────────────────────────────────────────────────
 
@@ -202,4 +211,36 @@ export function useEventData(eventTicker: string | null) {
   }, [eventTicker]);
 
   return { event, loading, error };
+}
+
+// ─── Order Book hook ─────────────────────────────────────────────────────────
+
+export function useOrderBook(ticker: string | null) {
+  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!ticker) return;
+    setLoading(true);
+    const res = await sendMsg<OrderBook>({
+      type: 'FETCH_ORDERBOOK',
+      payload: { ticker },
+    });
+    if (res.ok && res.data) {
+      setOrderBook(res.data);
+    }
+    setLoading(false);
+  }, [ticker]);
+
+  useEffect(() => {
+    if (!ticker) {
+      setOrderBook(null);
+      return;
+    }
+    void load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [ticker, load]);
+
+  return { orderBook, loading, refresh: load };
 }

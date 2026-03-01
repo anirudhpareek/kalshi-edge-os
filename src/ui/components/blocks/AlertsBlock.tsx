@@ -34,6 +34,7 @@ function formatAlertDesc(alert: Alert): string {
   if (alert.condition === 'above') return `Yes price above ${price}`;
   if (alert.condition === 'below') return `Yes price below ${price}`;
   if (alert.condition === 'edgeAbove') return `Best edge above ${price}`;
+  if (alert.condition === 'edgeBelow') return `Best edge below ${price}`;
   if (alert.condition === 'spreadWide') return `Spread above ${alert.threshold}c`;
   return `Moves ${price} in ${alert.timeWindowMinutes ?? 5}min`;
 }
@@ -43,6 +44,7 @@ const PRESETS = [
   { label: '50%', condition: 'above' as AlertCondition, threshold: 50 },
   { label: '70%', condition: 'above' as AlertCondition, threshold: 70 },
   { label: 'Edge 2%', condition: 'edgeAbove' as AlertCondition, threshold: 2 },
+  { label: 'Edge <0%', condition: 'edgeBelow' as AlertCondition, threshold: 0 },
   { label: 'Spread 4c', condition: 'spreadWide' as AlertCondition, threshold: 4 },
   { label: '±10%', condition: 'move' as AlertCondition, threshold: 10, timeWindow: 5 },
 ];
@@ -138,6 +140,7 @@ export function AlertsBlock({ market }: Props) {
             <option value="below">Yes price below</option>
             <option value="move">Moves by</option>
             <option value="edgeAbove">Best edge above</option>
+            <option value="edgeBelow">Best edge below</option>
             <option value="spreadWide">Spread above (cents)</option>
           </select>
           <input

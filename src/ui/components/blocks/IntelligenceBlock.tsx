@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { MarketModel, EventModel, PricePoint, ThesisData } from '../../../lib/types';
+import type { MarketModel, EventModel, PricePoint, ThesisData, OrderBook, OrderBookLevel } from '../../../lib/types';
 import { parseProbabilityInput, computeEdgeMetrics } from '../../../lib/edge';
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
   history: PricePoint[];
   event?: EventModel | null;
   thesis?: ThesisData | null;
+  orderBook?: OrderBook | null;
 }
 
 function formatNumber(n: number): string {
@@ -115,6 +116,50 @@ function estimateSlippageCents(notionalUsd: number, volume24h: number, spreadCen
   return Math.max(0, spreadImpact + participationImpact);
 }
 
+interface DepthFillResult {
+  avgPrice: number;
+  slippageCents: number;
+  fillRatio: number;
+  usedDepth: boolean;
+}
+
+function estimateFillFromDepth(
+  levels: OrderBookLevel[],
+  notionalUsd: number,
+  fallbackPrice: number
+): DepthFillResult {
+  if (!levels || levels.length === 0 || notionalUsd <= 0) {
+    return {
+      avgPrice: fallbackPrice,
+      slippageCents: 0,
+      fillRatio: 0,
+      usedDepth: false,
+    };
+  }
+
+  let remaining = notionalUsd;
+  let spent = 0;
+  for (const level of levels) {
+    if (remaining <= 0) break;
+    if (level.price <= 0 || level.quantity <= 0) continue;
+    const levelNotional = level.price * level.quantity;
+    const take = Math.min(levelNotional, remaining);
+    spent += take;
+    remaining -= take;
+  }
+
+  const filled = notionalUsd - remaining;
+  const fillRatio = filled / notionalUsd;
+  const avgPrice = filled > 0 ? spent / filled : fallbackPrice;
+  const slippageCents = Math.max(0, (avgPrice - fallbackPrice) * 100);
+  return {
+    avgPrice,
+    slippageCents,
+    fillRatio,
+    usedDepth: true,
+  };
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
@@ -166,7 +211,15 @@ function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData
   );
 }
 
-function ExecutionPlanner({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
+function ExecutionPlanner({
+  market,
+  thesis,
+  orderBook,
+}: {
+  market: MarketModel;
+  thesis?: ThesisData | null;
+  orderBook?: OrderBook | null;
+}) {
   const trueProb = parseProbabilityInput(thesis?.myProbability ?? '');
   const [notional, setNotional] = useState('500');
   const [side, setSide] = useState<TradeSide>('yes');
@@ -177,9 +230,20 @@ function ExecutionPlanner({ market, thesis }: { market: MarketModel; thesis?: Th
 
   const spreadCents = Math.max(0, market.yesAsk - market.yesBid);
   const parsedNotional = Math.max(1, parseFloat(notional) || 0);
-  const slippageCents = estimateSlippageCents(parsedNotional, market.volume24h, spreadCents);
   const baseFillCents = side === 'yes' ? market.yesAsk : market.noAsk;
-  const effectiveFillCents = Math.max(1, Math.min(99, baseFillCents + slippageCents));
+  const depthLevels = side === 'yes' ? (orderBook?.yes ?? []) : (orderBook?.no ?? []);
+  const fallbackSlippageCents = estimateSlippageCents(parsedNotional, market.volume24h, spreadCents);
+  const depthFill = estimateFillFromDepth(depthLevels, parsedNotional, baseFillCents / 100);
+  const effectiveFillCents = Math.max(
+    1,
+    Math.min(
+      99,
+      depthFill.usedDepth && depthFill.fillRatio > 0
+        ? depthFill.avgPrice * 100
+        : baseFillCents + fallbackSlippageCents
+    )
+  );
+  const slippageCents = Math.max(0, effectiveFillCents - baseFillCents);
   const trueWinProb = side === 'yes' ? trueProb : (1 - trueProb);
   const grossEvPct = (trueWinProb - effectiveFillCents / 100) * 100;
   const breakEvenProbPct = (effectiveFillCents / 100) * 100;
@@ -241,13 +305,20 @@ function ExecutionPlanner({ market, thesis }: { market: MarketModel; thesis?: Th
       </div>
 
       <div className="kil-edge-hint">
-        Heuristic model using spread + 24h volume participation. Use for sizing discipline, not exact fills.
+        {depthFill.usedDepth && depthFill.fillRatio > 0
+          ? `Depth model: ${(depthFill.fillRatio * 100).toFixed(0)}% size covered by visible book.`
+          : 'Heuristic model using spread + 24h volume participation (depth unavailable).'}
       </div>
+      {depthFill.usedDepth && depthFill.fillRatio < 1 && (
+        <div className="kil-edge-hint" style={{ color: 'var(--accent-warn)' }}>
+          Liquidity warning: only {(depthFill.fillRatio * 100).toFixed(0)}% of requested size visible in book.
+        </div>
+      )}
     </div>
   );
 }
 
-export function IntelligenceBlock({ market, history, event, thesis }: Props) {
+export function IntelligenceBlock({ market, history, event, thesis, orderBook }: Props) {
   const probPct = market.impliedProbability * 100;
   const spread = market.yesAsk - market.yesBid;
   const lastUpdated = useMemo(() => {
@@ -298,7 +369,7 @@ export function IntelligenceBlock({ market, history, event, thesis }: Props) {
       </div>
 
       <EdgeCard market={market} thesis={thesis} />
-      <ExecutionPlanner market={market} thesis={thesis} />
+      <ExecutionPlanner market={market} thesis={thesis} orderBook={orderBook} />
 
       {/* Multi-outcome indicator */}
       {event?.isMultiOutcome && (

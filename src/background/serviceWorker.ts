@@ -5,6 +5,7 @@
  */
 import {
   fetchMarketByTicker,
+  fetchOrderBookByTicker,
   fetchRelatedMarkets,
   fetchMarketForURL,
   fetchEventWithMarkets,
@@ -197,6 +198,12 @@ async function handleMessage(msg: Msg): Promise<MsgResponse> {
       const { eventTicker } = msg.payload as { eventTicker: string };
       const event = await fetchEventWithMarkets(eventTicker);
       return { ok: true, data: event };
+    }
+
+    case 'FETCH_ORDERBOOK': {
+      const { ticker } = msg.payload as { ticker: string };
+      const book = await fetchOrderBookByTicker(ticker);
+      return { ok: true, data: book };
     }
 
     case 'FETCH_RELATED': {

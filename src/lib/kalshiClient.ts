@@ -3,7 +3,15 @@
  * All fetches are performed from the background service worker.
  * Base URL: https://api.elections.kalshi.com/trade-api/v2
  */
-import type { MarketModel, RelatedMarket, EventModel, KalshiRawMarket, KalshiRawEvent } from './types';
+import type {
+  MarketModel,
+  RelatedMarket,
+  EventModel,
+  KalshiRawMarket,
+  KalshiRawEvent,
+  OrderBook,
+  OrderBookLevel,
+} from './types';
 import { getCanonicalMarketUrl } from './urls';
 
 const BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2';
@@ -128,11 +136,59 @@ interface MarketsListResponse {
   cursor?: string;
 }
 
+interface RawOrderBookResponse {
+  orderbook?: {
+    yes?: Array<[number, number]>;
+    no?: Array<[number, number]>;
+    yes_dollars?: Array<[string, number]>;
+    no_dollars?: Array<[string, number]>;
+  };
+  orderbook_fp?: {
+    yes_dollars?: Array<[string, number]>;
+    no_dollars?: Array<[string, number]>;
+  };
+}
+
+function parseOrderBookLevels(
+  levels: Array<[string | number, number]> | undefined,
+  asDollars: boolean
+): OrderBookLevel[] {
+  if (!levels || levels.length === 0) return [];
+  return levels
+    .map(([priceRaw, quantity]) => {
+      const parsedPrice = typeof priceRaw === 'string' ? parseFloat(priceRaw) : priceRaw;
+      if (!Number.isFinite(parsedPrice) || !Number.isFinite(quantity)) return null;
+      return {
+        price: asDollars ? parsedPrice : parsedPrice / 100,
+        quantity: Math.max(0, quantity),
+      };
+    })
+    .filter((x): x is OrderBookLevel => x != null)
+    .sort((a, b) => a.price - b.price);
+}
+
 // ─── Market Fetching ──────────────────────────────────────────────────────────
 
 export async function fetchMarketByTicker(ticker: string): Promise<MarketModel> {
   const data = await apiFetch<{ market: KalshiRawMarket }>(`/markets/${ticker}`);
   return normalizeMarket(data.market);
+}
+
+export async function fetchOrderBookByTicker(ticker: string): Promise<OrderBook> {
+  const data = await apiFetch<RawOrderBookResponse>(`/markets/${ticker}/orderbook`);
+  const yesDollar = data.orderbook?.yes_dollars ?? data.orderbook_fp?.yes_dollars ?? [];
+  const noDollar = data.orderbook?.no_dollars ?? data.orderbook_fp?.no_dollars ?? [];
+  const yesCent = data.orderbook?.yes ?? [];
+  const noCent = data.orderbook?.no ?? [];
+
+  return {
+    yes: yesDollar.length > 0
+      ? parseOrderBookLevels(yesDollar, true)
+      : parseOrderBookLevels(yesCent, false),
+    no: noDollar.length > 0
+      ? parseOrderBookLevels(noDollar, true)
+      : parseOrderBookLevels(noCent, false),
+  };
 }
 
 export async function fetchEventByTicker(ticker: string): Promise<{ markets: MarketModel[] }> {

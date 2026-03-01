@@ -17,6 +17,7 @@ import {
   useRelatedMarkets,
   useNews,
   useLLMSummary,
+  useOrderBook,
 } from './hooks/useMarketData';
 import type { BlockConfig } from '../lib/types';
 
@@ -71,6 +72,7 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
   const { event, loading: eventLoading } = useEventData(market?.eventTicker ?? null);
 
   const history = usePriceHistory(market?.ticker ?? null);
+  const { orderBook } = useOrderBook(market?.ticker ?? null);
   const { related, loading: relatedLoading } = useRelatedMarkets(market);
   const { news, loading: newsLoading, error: newsError } = useNews(
     market ? market.title : null
@@ -134,7 +136,7 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
     switch (id) {
       case 'intelligence':
         return market ? (
-          <IntelligenceBlock market={market} history={history} event={event} thesis={thesis} />
+          <IntelligenceBlock market={market} history={history} event={event} thesis={thesis} orderBook={orderBook} />
         ) : (
           <LoadingSkeleton />
         );

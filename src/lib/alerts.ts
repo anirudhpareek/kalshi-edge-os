@@ -101,6 +101,15 @@ export function evaluateAlerts(
           message = `${alert.marketTitle}: Edge is ${bestEvPct.toFixed(2)}% (threshold ${alert.threshold}%)`;
         }
       }
+    } else if (alert.condition === 'edgeBelow') {
+      if (trueProbability != null) {
+        const edge = computeEdgeMetrics(market, trueProbability);
+        const bestEvPct = edge.bestEv * 100;
+        if (bestEvPct <= alert.threshold) {
+          fired = true;
+          message = `${alert.marketTitle}: Edge dropped to ${bestEvPct.toFixed(2)}% (threshold ${alert.threshold}%)`;
+        }
+      }
     } else if (alert.condition === 'spreadWide') {
       const spreadCents = market.yesAsk - market.yesBid;
       if (spreadCents >= alert.threshold) {

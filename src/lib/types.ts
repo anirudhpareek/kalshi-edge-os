@@ -26,6 +26,7 @@ export interface MarketModel {
 }
 
 export interface OrderBookLevel {
+  // Price in dollars (0-1), e.g. 0.62
   price: number;
   quantity: number;
 }
@@ -106,7 +107,7 @@ export interface ForecastRecord {
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 
-export type AlertCondition = 'above' | 'below' | 'move' | 'edgeAbove' | 'spreadWide';
+export type AlertCondition = 'above' | 'below' | 'move' | 'edgeAbove' | 'edgeBelow' | 'spreadWide';
 
 export interface Alert {
   id: string;
@@ -203,6 +204,7 @@ export type MessageType =
   | 'DELETE_ALERT'
   | 'GET_ALERTS'
   | 'TRIGGER_NOTIFICATION'
+  | 'FETCH_ORDERBOOK'
   | 'ADD_FORECAST'
   | 'GET_FORECASTS'
   | 'REFRESH_FORECASTS';
