@@ -1072,6 +1072,65 @@
   padding: 16px 0;
 }
 
+/* ─── Review Block ───────────────────────────────────────────────────────── */
+
+.kil-review-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kil-review-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.kil-review-calibration,
+.kil-review-history {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+
+.kil-review-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.kil-review-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kil-review-item {
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 7px 8px;
+  background: var(--panel-bg);
+}
+
+.kil-review-title {
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.kil-review-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
 /* ─── Show More Button ──────────────────────────────────────────────────── */
 
 .kil-show-more {

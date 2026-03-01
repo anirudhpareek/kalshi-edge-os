@@ -8,6 +8,7 @@ import type {
   PricePoint,
   MarketModel,
   NewsItem,
+  ForecastRecord,
 } from './types';
 import { DEFAULT_PREFS } from './types';
 
@@ -184,6 +185,27 @@ export async function setCachedNews(query: string, items: NewsItem[]): Promise<v
   const entry: NewsCache = { items, fetchedAt: Date.now(), query };
   return new Promise((resolve, reject) => {
     chrome.storage.local.set({ [key]: entry }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+// ─── Local Storage: forecast journal ─────────────────────────────────────────
+
+const FORECASTS_KEY = 'forecasts';
+
+export async function getForecasts(): Promise<ForecastRecord[]> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([FORECASTS_KEY], (result) => {
+      resolve((result[FORECASTS_KEY] as ForecastRecord[]) ?? []);
+    });
+  });
+}
+
+export async function saveForecasts(forecasts: ForecastRecord[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [FORECASTS_KEY]: forecasts }, () => {
       if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
       else resolve();
     });

@@ -18,6 +18,8 @@ import {
   getAlerts,
   getPrefs,
   getThesis,
+  getForecasts,
+  saveForecasts,
 } from '../lib/storage';
 import {
   setupPollingAlarm,
@@ -32,8 +34,10 @@ import type {
   MsgResponse,
   Alert,
   MarketModel,
+  ForecastRecord,
 } from '../lib/types';
 import { parseProbabilityInput } from '../lib/edge';
+import { brierScore, parseResolvedOutcome } from '../lib/forecast';
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -91,6 +95,56 @@ async function runPollCycle(): Promise<void> {
   } catch (err) {
     console.error('[KalshiIntel] Poll cycle error:', err);
   }
+}
+
+async function refreshForecastResolutions(): Promise<ForecastRecord[]> {
+  const forecasts = await getForecasts();
+  const unresolved = forecasts.filter((f) => f.outcome == null);
+  if (unresolved.length === 0) return forecasts;
+
+  const byTicker = new Map<string, ForecastRecord[]>();
+  for (const record of unresolved) {
+    const group = byTicker.get(record.marketTicker) ?? [];
+    group.push(record);
+    byTicker.set(record.marketTicker, group);
+  }
+
+  const updates = new Map<string, { outcome: 0 | 1; resolvedAt: number; brierScore: number }>();
+
+  for (const [ticker, records] of byTicker.entries()) {
+    try {
+      const market = await fetchMarketByTicker(ticker);
+      if (market.status !== 'settled') continue;
+      const outcome = parseResolvedOutcome(market.result);
+      if (outcome == null) continue;
+
+      for (const record of records) {
+        updates.set(record.id, {
+          outcome,
+          resolvedAt: Date.now(),
+          brierScore: brierScore(record.forecastProbability, outcome),
+        });
+      }
+    } catch (error) {
+      console.warn('[KalshiIntel] Forecast refresh failed for', ticker, error);
+    }
+  }
+
+  if (updates.size === 0) return forecasts;
+
+  const next = forecasts.map((record) => {
+    const update = updates.get(record.id);
+    if (!update) return record;
+    return {
+      ...record,
+      outcome: update.outcome,
+      resolvedAt: update.resolvedAt,
+      brierScore: update.brierScore,
+    };
+  });
+
+  await saveForecasts(next);
+  return next;
 }
 
 // ─── Message Handling ─────────────────────────────────────────────────────────
@@ -191,6 +245,23 @@ async function handleMessage(msg: Msg): Promise<MsgResponse> {
     case 'GET_ALERTS': {
       const alerts = await getAlerts();
       return { ok: true, data: alerts };
+    }
+
+    case 'ADD_FORECAST': {
+      const { forecast } = msg.payload as { forecast: ForecastRecord };
+      const current = await getForecasts();
+      await saveForecasts([forecast, ...current].slice(0, 500));
+      return { ok: true };
+    }
+
+    case 'GET_FORECASTS': {
+      const forecasts = await getForecasts();
+      return { ok: true, data: forecasts };
+    }
+
+    case 'REFRESH_FORECASTS': {
+      const forecasts = await refreshForecastResolutions();
+      return { ok: true, data: forecasts };
     }
 
     default:

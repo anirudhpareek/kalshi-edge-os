@@ -7,6 +7,7 @@ import { ContextBlock } from './components/blocks/ContextBlock';
 import { ThesisBlock } from './components/blocks/ThesisBlock';
 import { RelatedMarketsBlock } from './components/blocks/RelatedMarketsBlock';
 import { AlertsBlock } from './components/blocks/AlertsBlock';
+import { ReviewBlock } from './components/blocks/ReviewBlock';
 import { usePrefs } from './hooks/useStorage';
 import { useThesis } from './hooks/useStorage';
 import {
@@ -54,6 +55,7 @@ const BLOCK_LABELS: Record<string, string> = {
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
+  review: 'Review / Learn',
 };
 
 export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps) {
@@ -181,6 +183,14 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
           <AlertsBlock market={market} />
         ) : (
           <div className="kil-empty-state">Loading market...</div>
+        );
+
+      case 'review':
+        return (
+          <ReviewBlock
+            market={market}
+            thesis={thesis}
+          />
         );
 
       default:

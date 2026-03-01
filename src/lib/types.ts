@@ -22,6 +22,7 @@ export interface MarketModel {
   category: string;
   tags: string[];
   rulesDescription: string;
+  result?: string;
 }
 
 export interface OrderBookLevel {
@@ -88,6 +89,21 @@ export interface ThesisData {
   updatedAt: number;
 }
 
+// ─── Forecast Journal ─────────────────────────────────────────────────────────
+
+export interface ForecastRecord {
+  id: string;
+  marketTicker: string;
+  marketTitle: string;
+  forecastProbability: number; // 0..1
+  confidence?: number; // 0..1
+  marketProbabilityAtEntry: number; // 0..1
+  createdAt: number;
+  resolvedAt?: number;
+  outcome?: 0 | 1;
+  brierScore?: number;
+}
+
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 
 export type AlertCondition = 'above' | 'below' | 'move' | 'edgeAbove' | 'spreadWide';
@@ -107,7 +123,7 @@ export interface Alert {
 
 // ─── Block System ─────────────────────────────────────────────────────────────
 
-export type BlockType = 'intelligence' | 'outcomes' | 'context' | 'thesis' | 'related' | 'alerts';
+export type BlockType = 'intelligence' | 'outcomes' | 'context' | 'thesis' | 'related' | 'alerts' | 'review';
 export type BlockSize = 'small' | 'medium' | 'large';
 export type WorkMode = 'quick' | 'deep' | 'review';
 
@@ -138,6 +154,7 @@ export const DEFAULT_BLOCKS: BlockConfig[] = [
   { id: 'thesis',       visible: true,  size: 'medium', order: 3 },
   { id: 'related',      visible: true,  size: 'small',  order: 4 },
   { id: 'alerts',       visible: true,  size: 'small',  order: 5 },
+  { id: 'review',       visible: false, size: 'medium', order: 6 },
 ];
 
 export const DEFAULT_PREFS: UserPrefs = {
@@ -154,7 +171,7 @@ export const DEFAULT_PREFS: UserPrefs = {
 const MODE_BLOCKS: Record<WorkMode, BlockType[]> = {
   quick: ['intelligence', 'alerts', 'thesis'],
   deep: ['intelligence', 'outcomes', 'context', 'thesis', 'related', 'alerts'],
-  review: ['intelligence', 'thesis', 'alerts', 'outcomes'],
+  review: ['review', 'intelligence', 'thesis', 'alerts', 'outcomes'],
 };
 
 export function blocksForMode(mode: WorkMode): BlockConfig[] {
@@ -185,7 +202,10 @@ export type MessageType =
   | 'SET_ALERT'
   | 'DELETE_ALERT'
   | 'GET_ALERTS'
-  | 'TRIGGER_NOTIFICATION';
+  | 'TRIGGER_NOTIFICATION'
+  | 'ADD_FORECAST'
+  | 'GET_FORECASTS'
+  | 'REFRESH_FORECASTS';
 
 export interface Msg<T = Record<string, unknown>> {
   type: MessageType;

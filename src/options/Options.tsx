@@ -10,6 +10,7 @@ const BLOCK_LABELS: Record<string, string> = {
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
+  review: 'Review / Learn',
 };
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
