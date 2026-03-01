@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { MarketModel, EventModel, PricePoint, ThesisData } from '../../../lib/types';
 import { parseProbabilityInput, computeEdgeMetrics } from '../../../lib/edge';
 
@@ -104,6 +104,17 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`kil-badge ${cls}`}>{status}</span>;
 }
 
+type TradeSide = 'yes' | 'no';
+
+function estimateSlippageCents(notionalUsd: number, volume24h: number, spreadCents: number): number {
+  const volumeGuard = Math.max(volume24h, 1);
+  const participation = Math.min(1, notionalUsd / volumeGuard);
+  // Heuristic impact model: spread component + participation component.
+  const spreadImpact = spreadCents * 0.25;
+  const participationImpact = participation * 12;
+  return Math.max(0, spreadImpact + participationImpact);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
@@ -150,6 +161,87 @@ function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData
       </div>
       <div className="kil-edge-hint">
         Yes EV @ ask {(edge.yesEvAtAsk * 100).toFixed(2)}% | No EV @ ask {(edge.noEvAtAsk * 100).toFixed(2)}%
+      </div>
+    </div>
+  );
+}
+
+function ExecutionPlanner({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
+  const trueProb = parseProbabilityInput(thesis?.myProbability ?? '');
+  const [notional, setNotional] = useState('500');
+  const [side, setSide] = useState<TradeSide>('yes');
+
+  if (trueProb == null) {
+    return null;
+  }
+
+  const spreadCents = Math.max(0, market.yesAsk - market.yesBid);
+  const parsedNotional = Math.max(1, parseFloat(notional) || 0);
+  const slippageCents = estimateSlippageCents(parsedNotional, market.volume24h, spreadCents);
+  const baseFillCents = side === 'yes' ? market.yesAsk : market.noAsk;
+  const effectiveFillCents = Math.max(1, Math.min(99, baseFillCents + slippageCents));
+  const trueWinProb = side === 'yes' ? trueProb : (1 - trueProb);
+  const grossEvPct = (trueWinProb - effectiveFillCents / 100) * 100;
+  const breakEvenProbPct = (effectiveFillCents / 100) * 100;
+
+  const verdict = grossEvPct >= 2 ? 'trade' : grossEvPct >= 0 ? 'watch' : 'skip';
+  const verdictLabel = verdict === 'trade' ? 'Trade setup' : verdict === 'watch' ? 'Watch setup' : 'Skip setup';
+
+  return (
+    <div className={`kil-exec-card ${verdict}`}>
+      <div className="kil-edge-header">
+        <div className="kil-edge-title">Execution Planner</div>
+        <div className={`kil-edge-pill ${verdict === 'skip' ? 'negative' : verdict === 'trade' ? 'positive' : ''}`}>
+          {verdictLabel}
+        </div>
+      </div>
+
+      <div className="kil-exec-controls">
+        <label className="kil-exec-field">
+          <span>Side</span>
+          <select
+            className="kil-select"
+            value={side}
+            onChange={(e) => setSide(e.target.value as TradeSide)}
+          >
+            <option value="yes">Buy YES</option>
+            <option value="no">Buy NO</option>
+          </select>
+        </label>
+        <label className="kil-exec-field">
+          <span>Size (USD)</span>
+          <input
+            type="number"
+            className="kil-input-small"
+            value={notional}
+            min={1}
+            step={50}
+            onChange={(e) => setNotional(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="kil-edge-grid">
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Est Fill</div>
+          <div className="kil-edge-value">{effectiveFillCents.toFixed(1)}c</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Slippage</div>
+          <div className="kil-edge-value">{slippageCents.toFixed(1)}c</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className="kil-edge-label">Break-even P</div>
+          <div className="kil-edge-value">{breakEvenProbPct.toFixed(1)}%</div>
+        </div>
+        <div className="kil-edge-stat">
+          <div className={`kil-edge-label ${grossEvPct < 0 ? 'negative' : ''}`}>EV After Cost</div>
+          <div className={`kil-edge-value ${grossEvPct < 0 ? 'negative' : 'positive'}`}>{grossEvPct.toFixed(2)}%</div>
+        </div>
+      </div>
+
+      <div className="kil-edge-hint">
+        Heuristic model using spread + 24h volume participation. Use for sizing discipline, not exact fills.
       </div>
     </div>
   );
@@ -206,6 +298,7 @@ export function IntelligenceBlock({ market, history, event, thesis }: Props) {
       </div>
 
       <EdgeCard market={market} thesis={thesis} />
+      <ExecutionPlanner market={market} thesis={thesis} />
 
       {/* Multi-outcome indicator */}
       {event?.isMultiOutcome && (

@@ -612,6 +612,48 @@
   color: var(--text-secondary);
 }
 
+.kil-exec-card {
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  border-radius: 5px;
+  padding: 9px 10px;
+  margin-bottom: 12px;
+}
+
+.kil-exec-card.trade {
+  border-color: rgba(0, 200, 150, 0.45);
+}
+
+.kil-exec-card.skip {
+  border-color: rgba(224, 80, 80, 0.45);
+}
+
+.kil-exec-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kil-exec-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kil-exec-field .kil-select {
+  width: 100%;
+}
+
+.kil-exec-field .kil-input-small {
+  width: 100%;
+  text-align: left;
+}
+
 .kil-sum-inline {
   color: var(--accent-warn);
   margin-left: 4px;
