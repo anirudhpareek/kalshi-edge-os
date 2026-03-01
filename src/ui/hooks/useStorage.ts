@@ -74,6 +74,7 @@ export function useThesis(ticker: string | null): [ThesisData | null, (d: Partia
       if (!ticker) return;
       const current: ThesisData = thesis ?? {
         myProbability: '',
+        myConfidence: '',
         myThesis: '',
         whatWouldChangeMyMind: '',
         updatedAt: 0,

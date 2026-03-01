@@ -82,6 +82,7 @@ export interface NewsItem {
 
 export interface ThesisData {
   myProbability: string;
+  myConfidence: string;
   myThesis: string;
   whatWouldChangeMyMind: string;
   updatedAt: number;
@@ -89,7 +90,7 @@ export interface ThesisData {
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 
-export type AlertCondition = 'above' | 'below' | 'move';
+export type AlertCondition = 'above' | 'below' | 'move' | 'edgeAbove' | 'spreadWide';
 
 export interface Alert {
   id: string;
@@ -108,6 +109,7 @@ export interface Alert {
 
 export type BlockType = 'intelligence' | 'outcomes' | 'context' | 'thesis' | 'related' | 'alerts';
 export type BlockSize = 'small' | 'medium' | 'large';
+export type WorkMode = 'quick' | 'deep' | 'review';
 
 export interface BlockConfig {
   id: BlockType;
@@ -122,6 +124,7 @@ export interface UserPrefs {
   panelOpen: boolean;
   panelWidth: number;
   theme: 'system' | 'light' | 'dark';
+  mode: WorkMode;
   blocks: BlockConfig[];
   llmEnabled: boolean;
   llmApiKey: string;
@@ -141,11 +144,34 @@ export const DEFAULT_PREFS: UserPrefs = {
   panelOpen: true,
   panelWidth: 380,
   theme: 'system',
+  mode: 'deep',
   blocks: DEFAULT_BLOCKS,
   llmEnabled: false,
   llmApiKey: '',
   pollingIntervalSeconds: 30,
 };
+
+const MODE_BLOCKS: Record<WorkMode, BlockType[]> = {
+  quick: ['intelligence', 'alerts', 'thesis'],
+  deep: ['intelligence', 'outcomes', 'context', 'thesis', 'related', 'alerts'],
+  review: ['intelligence', 'thesis', 'alerts', 'outcomes'],
+};
+
+export function blocksForMode(mode: WorkMode): BlockConfig[] {
+  const visible = new Set(MODE_BLOCKS[mode]);
+  const order = MODE_BLOCKS[mode];
+  const fallback = DEFAULT_BLOCKS.map((b) => b.id);
+
+  return DEFAULT_BLOCKS.map((block) => {
+    const modeOrder = order.indexOf(block.id);
+    const fallbackOrder = fallback.indexOf(block.id);
+    return {
+      ...block,
+      visible: visible.has(block.id),
+      order: modeOrder >= 0 ? modeOrder : fallbackOrder + order.length,
+    };
+  }).sort((a, b) => a.order - b.order);
+}
 
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
@@ -223,4 +249,3 @@ export interface KalshiRawEvent {
   category?: string;
   markets?: KalshiRawMarket[];
 }
-

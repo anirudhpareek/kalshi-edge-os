@@ -3,12 +3,23 @@
  * Add this to src/ui/hooks/useMarketData.ts to re-enable the feature
  */
 import { useState, useEffect, useCallback } from 'react';
-import type { WhaleSignals, Msg, MsgResponse } from './types';
+import type { WhaleSignals } from './types';
+
+interface WhaleMsg {
+  type: 'FETCH_WHALE_SIGNALS';
+  payload: { ticker: string };
+}
+
+interface WhaleMsgResponse<T = unknown> {
+  ok: boolean;
+  data?: T;
+  error?: string;
+}
 
 // Copy from useMarketData.ts
-function sendMsg<T>(msg: Msg): Promise<MsgResponse<T>> {
+function sendMsg<T>(msg: WhaleMsg): Promise<WhaleMsgResponse<T>> {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(msg, (response: MsgResponse<T>) => {
+    chrome.runtime.sendMessage(msg, (response: WhaleMsgResponse<T>) => {
       if (chrome.runtime.lastError) {
         resolve({ ok: false, error: chrome.runtime.lastError.message });
       } else {

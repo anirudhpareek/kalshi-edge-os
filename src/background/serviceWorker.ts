@@ -17,6 +17,7 @@ import {
   getPriceHistory,
   getAlerts,
   getPrefs,
+  getThesis,
 } from '../lib/storage';
 import {
   setupPollingAlarm,
@@ -32,6 +33,7 @@ import type {
   Alert,
   MarketModel,
 } from '../lib/types';
+import { parseProbabilityInput } from '../lib/edge';
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -70,7 +72,9 @@ async function runPollCycle(): Promise<void> {
         await appendPricePoint(ticker, priceInPct);
 
         const history = await getPriceHistory(ticker);
-        const triggered = evaluateAlerts(alerts, ticker, priceInPct, history);
+        const thesis = await getThesis(ticker);
+        const trueProbability = parseProbabilityInput(thesis?.myProbability ?? '');
+        const triggered = evaluateAlerts(alerts, ticker, market, trueProbability, priceInPct, history);
 
         if (triggered.length > 0) {
           const ids = triggered.map((t) => t.alert.id);

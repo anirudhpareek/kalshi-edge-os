@@ -58,12 +58,12 @@ const BLOCK_LABELS: Record<string, string> = {
 
 export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps) {
   const [prefs, updatePrefs] = usePrefs();
-  const [thesis, updateThesis] = useThesis(marketTicker);
 
   const { market, loading: marketLoading, error: marketError } = useMarketData(
     marketTicker,
     isMarketPage ? currentUrl : ''
   );
+  const [thesis, updateThesis] = useThesis(market?.ticker ?? marketTicker);
 
   // Fetch full event data for multi-outcome markets
   const { event, loading: eventLoading } = useEventData(market?.eventTicker ?? null);
@@ -132,7 +132,7 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
     switch (id) {
       case 'intelligence':
         return market ? (
-          <IntelligenceBlock market={market} history={history} event={event} />
+          <IntelligenceBlock market={market} history={history} event={event} thesis={thesis} />
         ) : (
           <LoadingSkeleton />
         );
