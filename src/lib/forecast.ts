@@ -11,6 +11,18 @@ export function brierScore(probability: number, outcome: 0 | 1): number {
   return diff * diff;
 }
 
+export function realizedReturnPct(
+  side: 'yes' | 'no',
+  fillPrice: number,
+  outcome: 0 | 1
+): number {
+  const clampedFill = Math.max(0, Math.min(1, fillPrice));
+  if (side === 'yes') {
+    return ((outcome === 1 ? 1 - clampedFill : -clampedFill) * 100);
+  }
+  return ((outcome === 0 ? 1 - clampedFill : -clampedFill) * 100);
+}
+
 export function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }

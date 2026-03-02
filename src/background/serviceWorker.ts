@@ -38,7 +38,7 @@ import type {
   ForecastRecord,
 } from '../lib/types';
 import { parseProbabilityInput } from '../lib/edge';
-import { brierScore, parseResolvedOutcome } from '../lib/forecast';
+import { brierScore, parseResolvedOutcome, realizedReturnPct } from '../lib/forecast';
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -110,7 +110,12 @@ async function refreshForecastResolutions(): Promise<ForecastRecord[]> {
     byTicker.set(record.marketTicker, group);
   }
 
-  const updates = new Map<string, { outcome: 0 | 1; resolvedAt: number; brierScore: number }>();
+  const updates = new Map<string, {
+    outcome: 0 | 1;
+    resolvedAt: number;
+    brierScore: number;
+    realizedEvPct: number;
+  }>();
 
   for (const [ticker, records] of byTicker.entries()) {
     try {
@@ -120,10 +125,13 @@ async function refreshForecastResolutions(): Promise<ForecastRecord[]> {
       if (outcome == null) continue;
 
       for (const record of records) {
+        const side = record.side ?? 'yes';
+        const fillPrice = record.effectiveFillPrice ?? record.marketProbabilityAtEntry;
         updates.set(record.id, {
           outcome,
           resolvedAt: Date.now(),
           brierScore: brierScore(record.forecastProbability, outcome),
+          realizedEvPct: realizedReturnPct(side, fillPrice, outcome),
         });
       }
     } catch (error) {
@@ -141,6 +149,7 @@ async function refreshForecastResolutions(): Promise<ForecastRecord[]> {
       outcome: update.outcome,
       resolvedAt: update.resolvedAt,
       brierScore: update.brierScore,
+      realizedEvPct: update.realizedEvPct,
     };
   });
 

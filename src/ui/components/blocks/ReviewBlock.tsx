@@ -136,6 +136,18 @@ export function ReviewBlock({ market, thesis }: Props) {
       : null;
 
     const overconfident = sharpErrorRate != null && sharpErrorRate > 0.2;
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const weekly = forecasts.filter((f) => now - f.createdAt <= weekMs);
+    const weeklyResolved = weekly.filter((f) => f.outcome != null && f.brierScore != null);
+    const weeklyMeanBrier = weeklyResolved.length > 0
+      ? weeklyResolved.reduce((sum, f) => sum + (f.brierScore ?? 0), 0) / weeklyResolved.length
+      : null;
+
+    const retentionResolved = resolved.filter((r) => (r.forecastEvPct ?? 0) > 0 && r.realizedEvPct != null);
+    const forecastEvSum = retentionResolved.reduce((sum, r) => sum + (r.forecastEvPct ?? 0), 0);
+    const realizedEvSum = retentionResolved.reduce((sum, r) => sum + (r.realizedEvPct ?? 0), 0);
+    const edgeRetention = forecastEvSum > 0 ? realizedEvSum / forecastEvSum : null;
 
     return {
       total: forecasts.length,
@@ -145,6 +157,12 @@ export function ReviewBlock({ market, thesis }: Props) {
       weightedCalibrationGap,
       overconfident,
       sharpErrorRate,
+      edgeRetention,
+      weekly: {
+        intents: weekly.length,
+        resolved: weeklyResolved.length,
+        meanBrier: weeklyMeanBrier,
+      },
       buckets,
       worstMistakes,
       recent: forecasts.slice(0, 8),
@@ -200,6 +218,12 @@ export function ReviewBlock({ market, thesis }: Props) {
             {stats.sharpErrorRate == null ? '-' : `${(stats.sharpErrorRate * 100).toFixed(0)}%`}
           </div>
         </div>
+        <div className="kil-stat">
+          <div className="kil-stat-label">Edge Retention</div>
+          <div className="kil-stat-value">
+            {stats.edgeRetention == null ? '-' : `${(stats.edgeRetention * 100).toFixed(0)}%`}
+          </div>
+        </div>
       </div>
 
       {stats.resolved > 0 && (
@@ -209,6 +233,49 @@ export function ReviewBlock({ market, thesis }: Props) {
             : 'Model signal: confidence profile is stable at current sample size.'}
         </div>
       )}
+
+      <div className="kil-review-calibration">
+        <div className="kil-sparkline-label">7-Day Report</div>
+        <div className="kil-review-row">
+          <span className="kil-review-row-label">
+            Trade intents
+            <span className="kil-review-row-count">last 7 days</span>
+          </span>
+          <div className="kil-review-cal-bar">
+            <div
+              className="kil-review-cal-hit"
+              style={{ width: `${Math.min(100, stats.weekly.intents * 10)}%` }}
+            />
+          </div>
+          <span>{stats.weekly.intents}</span>
+        </div>
+        <div className="kil-review-row">
+          <span className="kil-review-row-label">
+            Resolved
+            <span className="kil-review-row-count">last 7 days</span>
+          </span>
+          <div className="kil-review-cal-bar">
+            <div
+              className="kil-review-cal-hit"
+              style={{ width: `${stats.weekly.intents === 0 ? 0 : (stats.weekly.resolved / stats.weekly.intents) * 100}%` }}
+            />
+          </div>
+          <span>{stats.weekly.resolved}</span>
+        </div>
+        <div className="kil-review-row">
+          <span className="kil-review-row-label">
+            Mean Brier
+            <span className="kil-review-row-count">last 7 days</span>
+          </span>
+          <div className="kil-review-cal-bar">
+            <div
+              className="kil-review-cal-hit"
+              style={{ width: `${stats.weekly.meanBrier == null ? 0 : Math.max(0, 100 - (stats.weekly.meanBrier * 100))}%` }}
+            />
+          </div>
+          <span>{stats.weekly.meanBrier == null ? '-' : stats.weekly.meanBrier.toFixed(3)}</span>
+        </div>
+      </div>
 
       <div className="kil-review-calibration">
         <div className="kil-sparkline-label">Calibration Buckets</div>
@@ -271,11 +338,15 @@ export function ReviewBlock({ market, thesis }: Props) {
                 <div className="kil-review-meta">
                   <span>My P {(record.forecastProbability * 100).toFixed(1)}%</span>
                   <span>Market {(record.marketProbabilityAtEntry * 100).toFixed(1)}%</span>
+                  {record.side && <span>{record.side.toUpperCase()}</span>}
                   <span>
                     {record.brierScore == null
                       ? 'Unresolved'
                       : `Brier ${record.brierScore.toFixed(3)}`}
                   </span>
+                  {record.realizedEvPct != null && (
+                    <span>{`Realized ${record.realizedEvPct.toFixed(2)}%`}</span>
+                  )}
                 </div>
               </li>
             ))}

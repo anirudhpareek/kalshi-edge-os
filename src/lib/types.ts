@@ -99,6 +99,13 @@ export interface ForecastRecord {
   forecastProbability: number; // 0..1
   confidence?: number; // 0..1
   marketProbabilityAtEntry: number; // 0..1
+  side?: 'yes' | 'no';
+  sizeUsd?: number;
+  effectiveFillPrice?: number; // 0..1
+  forecastEvPct?: number;
+  realizedEvPct?: number;
+  depthCoverage?: number; // 0..1
+  spreadCentsAtEntry?: number;
   createdAt: number;
   resolvedAt?: number;
   outcome?: 0 | 1;

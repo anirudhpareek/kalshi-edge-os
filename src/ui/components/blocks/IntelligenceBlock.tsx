@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import type { MarketModel, EventModel, PricePoint, ThesisData, OrderBook, OrderBookLevel } from '../../../lib/types';
+import type {
+  MarketModel,
+  EventModel,
+  PricePoint,
+  ThesisData,
+  OrderBook,
+  OrderBookLevel,
+  Msg,
+  MsgResponse,
+  ForecastRecord,
+} from '../../../lib/types';
 import { parseProbabilityInput, computeEdgeMetrics } from '../../../lib/edge';
 
 interface Props {
@@ -8,6 +18,32 @@ interface Props {
   event?: EventModel | null;
   thesis?: ThesisData | null;
   orderBook?: OrderBook | null;
+}
+
+type TradeSide = 'yes' | 'no';
+
+interface Opportunity {
+  side: TradeSide;
+  sizeUsd: number;
+  effectiveFillCents: number;
+  slippageCents: number;
+  depthCoverage: number;
+  evAfterCostPct: number;
+  breakEvenProbPct: number;
+  gatePass: boolean;
+  gateReasons: string[];
+}
+
+function sendMsg<T>(msg: Msg): Promise<MsgResponse<T>> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, (response: MsgResponse<T>) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+      } else {
+        resolve(response ?? { ok: false, error: 'No response' });
+      }
+    });
+  });
 }
 
 function formatNumber(n: number): string {
@@ -31,7 +67,45 @@ function formatDate(iso: string): string {
   }
 }
 
-// ─── Sparkline component ──────────────────────────────────────────────────────
+function makeForecastId(): string {
+  return `forecast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function estimateSlippageCents(notionalUsd: number, volume24h: number, spreadCents: number): number {
+  const volumeGuard = Math.max(volume24h, 1);
+  const participation = Math.min(1, notionalUsd / volumeGuard);
+  const spreadImpact = spreadCents * 0.25;
+  const participationImpact = participation * 12;
+  return Math.max(0, spreadImpact + participationImpact);
+}
+
+function estimateFillFromDepth(
+  levels: OrderBookLevel[],
+  notionalUsd: number,
+  fallbackPrice: number
+): { avgPrice: number; fillRatio: number; usedDepth: boolean } {
+  if (!levels || levels.length === 0 || notionalUsd <= 0) {
+    return { avgPrice: fallbackPrice, fillRatio: 0, usedDepth: false };
+  }
+
+  let remaining = notionalUsd;
+  let spent = 0;
+  for (const level of levels) {
+    if (remaining <= 0) break;
+    if (level.price <= 0 || level.quantity <= 0) continue;
+    const levelNotional = level.price * level.quantity;
+    const take = Math.min(levelNotional, remaining);
+    spent += take;
+    remaining -= take;
+  }
+
+  const filled = notionalUsd - remaining;
+  return {
+    avgPrice: filled > 0 ? spent / filled : fallbackPrice,
+    fillRatio: filled / notionalUsd,
+    usedDepth: true,
+  };
+}
 
 function Sparkline({ data }: { data: PricePoint[] }) {
   const svgData = useMemo(() => {
@@ -52,7 +126,7 @@ function Sparkline({ data }: { data: PricePoint[] }) {
     const lastY = H - ((prices[prices.length - 1] - minP) / range) * (H - 4) - 2;
     const lastX = W;
 
-    return { points: points.join(' '), lastX, lastY, minP, maxP };
+    return { points: points.join(' '), lastX, lastY };
   }, [data]);
 
   if (!svgData || data.length < 2) {
@@ -64,103 +138,24 @@ function Sparkline({ data }: { data: PricePoint[] }) {
   }
 
   return (
-    <svg className="kil-sparkline" viewBox={`0 0 300 48`} preserveAspectRatio="none">
+    <svg className="kil-sparkline" viewBox="0 0 300 48" preserveAspectRatio="none">
       <defs>
         <linearGradient id="kil-spark-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
           <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* Area fill */}
-      <polygon
-        points={`0,48 ${svgData.points} 300,48`}
-        fill="url(#kil-spark-grad)"
-      />
-      {/* Line */}
-      <polyline
-        points={svgData.points}
-        fill="none"
-        stroke="var(--accent)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Last point dot */}
-      <circle
-        cx={svgData.lastX}
-        cy={svgData.lastY}
-        r="3"
-        fill="var(--accent)"
-      />
+      <polygon points={`0,48 ${svgData.points} 300,48`} fill="url(#kil-spark-grad)" />
+      <polyline points={svgData.points} fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={svgData.lastX} cy={svgData.lastY} r="3" fill="var(--accent)" />
     </svg>
   );
 }
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
 function StatusBadge({ status }: { status: string }) {
-  const cls = ['open', 'closed', 'settled', 'halted'].includes(status)
-    ? status
-    : 'closed';
+  const cls = ['open', 'closed', 'settled', 'halted'].includes(status) ? status : 'closed';
   return <span className={`kil-badge ${cls}`}>{status}</span>;
 }
-
-type TradeSide = 'yes' | 'no';
-
-function estimateSlippageCents(notionalUsd: number, volume24h: number, spreadCents: number): number {
-  const volumeGuard = Math.max(volume24h, 1);
-  const participation = Math.min(1, notionalUsd / volumeGuard);
-  // Heuristic impact model: spread component + participation component.
-  const spreadImpact = spreadCents * 0.25;
-  const participationImpact = participation * 12;
-  return Math.max(0, spreadImpact + participationImpact);
-}
-
-interface DepthFillResult {
-  avgPrice: number;
-  slippageCents: number;
-  fillRatio: number;
-  usedDepth: boolean;
-}
-
-function estimateFillFromDepth(
-  levels: OrderBookLevel[],
-  notionalUsd: number,
-  fallbackPrice: number
-): DepthFillResult {
-  if (!levels || levels.length === 0 || notionalUsd <= 0) {
-    return {
-      avgPrice: fallbackPrice,
-      slippageCents: 0,
-      fillRatio: 0,
-      usedDepth: false,
-    };
-  }
-
-  let remaining = notionalUsd;
-  let spent = 0;
-  for (const level of levels) {
-    if (remaining <= 0) break;
-    if (level.price <= 0 || level.quantity <= 0) continue;
-    const levelNotional = level.price * level.quantity;
-    const take = Math.min(levelNotional, remaining);
-    spent += take;
-    remaining -= take;
-  }
-
-  const filled = notionalUsd - remaining;
-  const fillRatio = filled / notionalUsd;
-  const avgPrice = filled > 0 ? spent / filled : fallbackPrice;
-  const slippageCents = Math.max(0, (avgPrice - fallbackPrice) * 100);
-  return {
-    avgPrice,
-    slippageCents,
-    fillRatio,
-    usedDepth: true,
-  };
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData | null }) {
   const trueProb = parseProbabilityInput(thesis?.myProbability ?? '');
@@ -168,9 +163,7 @@ function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData
     return (
       <div className="kil-edge-card">
         <div className="kil-edge-title">Edge Check</div>
-        <div className="kil-edge-empty">
-          Add "My Probability" in Thesis to unlock EV, break-even, and edge alerts.
-        </div>
+        <div className="kil-edge-empty">Add "My Probability" in Thesis to unlock EV and scanner decisions.</div>
       </div>
     );
   }
@@ -187,31 +180,17 @@ function EdgeCard({ market, thesis }: { market: MarketModel; thesis?: ThesisData
         <div className={`kil-edge-pill ${state}`}>{verdict}</div>
       </div>
       <div className="kil-edge-grid">
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">My P</div>
-          <div className="kil-edge-value">{(edge.trueProbability * 100).toFixed(1)}%</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Market Mid</div>
-          <div className="kil-edge-value">{(edge.marketMidProbability * 100).toFixed(1)}%</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Best EV</div>
-          <div className={`kil-edge-value ${state}`}>{edgePct.toFixed(2)}%</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Spread</div>
-          <div className="kil-edge-value">{(edge.spread * 100).toFixed(1)}c</div>
-        </div>
+        <div className="kil-edge-stat"><div className="kil-edge-label">My P</div><div className="kil-edge-value">{(edge.trueProbability * 100).toFixed(1)}%</div></div>
+        <div className="kil-edge-stat"><div className="kil-edge-label">Market Mid</div><div className="kil-edge-value">{(edge.marketMidProbability * 100).toFixed(1)}%</div></div>
+        <div className="kil-edge-stat"><div className="kil-edge-label">Best EV</div><div className={`kil-edge-value ${state}`}>{edgePct.toFixed(2)}%</div></div>
+        <div className="kil-edge-stat"><div className="kil-edge-label">Spread</div><div className="kil-edge-value">{(edge.spread * 100).toFixed(1)}c</div></div>
       </div>
-      <div className="kil-edge-hint">
-        Yes EV @ ask {(edge.yesEvAtAsk * 100).toFixed(2)}% | No EV @ ask {(edge.noEvAtAsk * 100).toFixed(2)}%
-      </div>
+      <div className="kil-edge-hint">Yes EV @ ask {(edge.yesEvAtAsk * 100).toFixed(2)}% | No EV @ ask {(edge.noEvAtAsk * 100).toFixed(2)}%</div>
     </div>
   );
 }
 
-function ExecutionPlanner({
+function OpportunityScanner({
   market,
   thesis,
   orderBook,
@@ -221,99 +200,148 @@ function ExecutionPlanner({
   orderBook?: OrderBook | null;
 }) {
   const trueProb = parseProbabilityInput(thesis?.myProbability ?? '');
-  const [notional, setNotional] = useState('500');
-  const [side, setSide] = useState<TradeSide>('yes');
+  const confidence = parseProbabilityInput(thesis?.myConfidence ?? '');
+  const [evMinPct, setEvMinPct] = useState('1.5');
+  const [spreadMaxCents, setSpreadMaxCents] = useState('4');
+  const [depthMinPct, setDepthMinPct] = useState('70');
+  const [confidenceMinPct, setConfidenceMinPct] = useState('60');
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   if (trueProb == null) {
     return null;
   }
 
-  const spreadCents = Math.max(0, market.yesAsk - market.yesBid);
-  const parsedNotional = Math.max(1, parseFloat(notional) || 0);
-  const baseFillCents = side === 'yes' ? market.yesAsk : market.noAsk;
-  const depthLevels = side === 'yes' ? (orderBook?.yes ?? []) : (orderBook?.no ?? []);
-  const fallbackSlippageCents = estimateSlippageCents(parsedNotional, market.volume24h, spreadCents);
-  const depthFill = estimateFillFromDepth(depthLevels, parsedNotional, baseFillCents / 100);
-  const effectiveFillCents = Math.max(
-    1,
-    Math.min(
-      99,
-      depthFill.usedDepth && depthFill.fillRatio > 0
-        ? depthFill.avgPrice * 100
-        : baseFillCents + fallbackSlippageCents
-    )
-  );
-  const slippageCents = Math.max(0, effectiveFillCents - baseFillCents);
-  const trueWinProb = side === 'yes' ? trueProb : (1 - trueProb);
-  const grossEvPct = (trueWinProb - effectiveFillCents / 100) * 100;
-  const breakEvenProbPct = (effectiveFillCents / 100) * 100;
+  const gate = {
+    evMin: parseFloat(evMinPct) || 0,
+    spreadMax: parseFloat(spreadMaxCents) || 100,
+    depthMin: (parseFloat(depthMinPct) || 0) / 100,
+    confidenceMin: (parseFloat(confidenceMinPct) || 0) / 100,
+  };
 
-  const verdict = grossEvPct >= 2 ? 'trade' : grossEvPct >= 0 ? 'watch' : 'skip';
-  const verdictLabel = verdict === 'trade' ? 'Trade setup' : verdict === 'watch' ? 'Watch setup' : 'Skip setup';
+  const spreadCents = Math.max(0, market.yesAsk - market.yesBid);
+  const sizes = [250, 500, 1000, 2500];
+  const sides: TradeSide[] = ['yes', 'no'];
+
+  const opportunities: Opportunity[] = [];
+
+  for (const side of sides) {
+    for (const sizeUsd of sizes) {
+      const baseFillCents = side === 'yes' ? market.yesAsk : market.noAsk;
+      const depthLevels = side === 'yes' ? (orderBook?.yes ?? []) : (orderBook?.no ?? []);
+      const depthFill = estimateFillFromDepth(depthLevels, sizeUsd, baseFillCents / 100);
+      const fallbackSlippage = estimateSlippageCents(sizeUsd, market.volume24h, spreadCents);
+      const effectiveFillCents = Math.max(
+        1,
+        Math.min(
+          99,
+          depthFill.usedDepth && depthFill.fillRatio > 0
+            ? depthFill.avgPrice * 100
+            : baseFillCents + fallbackSlippage
+        )
+      );
+      const slippageCents = Math.max(0, effectiveFillCents - baseFillCents);
+      const trueWinProb = side === 'yes' ? trueProb : (1 - trueProb);
+      const evAfterCostPct = (trueWinProb - effectiveFillCents / 100) * 100;
+      const breakEvenProbPct = (effectiveFillCents / 100) * 100;
+      const depthCoverage = depthFill.usedDepth ? depthFill.fillRatio : 0;
+
+      const reasons: string[] = [];
+      if (evAfterCostPct < gate.evMin) reasons.push(`EV<${gate.evMin.toFixed(1)}%`);
+      if (spreadCents > gate.spreadMax) reasons.push(`spread>${gate.spreadMax.toFixed(1)}c`);
+      if (depthCoverage < gate.depthMin) reasons.push(`depth<${(gate.depthMin * 100).toFixed(0)}%`);
+      if ((confidence ?? 0) < gate.confidenceMin) reasons.push(`conf<${(gate.confidenceMin * 100).toFixed(0)}%`);
+
+      opportunities.push({
+        side,
+        sizeUsd,
+        effectiveFillCents,
+        slippageCents,
+        depthCoverage,
+        evAfterCostPct,
+        breakEvenProbPct,
+        gatePass: reasons.length === 0,
+        gateReasons: reasons,
+      });
+    }
+  }
+
+  const ranked = [...opportunities]
+    .sort((a, b) => b.evAfterCostPct - a.evAfterCostPct)
+    .slice(0, 3);
+
+  const handleIntent = async (o: Opportunity) => {
+    const id = `${o.side}-${o.sizeUsd}-${o.effectiveFillCents.toFixed(2)}`;
+    setSavingId(id);
+    const record: ForecastRecord = {
+      id: makeForecastId(),
+      marketTicker: market.ticker,
+      marketTitle: market.title,
+      forecastProbability: trueProb,
+      confidence: confidence ?? undefined,
+      marketProbabilityAtEntry: market.impliedProbability,
+      side: o.side,
+      sizeUsd: o.sizeUsd,
+      effectiveFillPrice: o.effectiveFillCents / 100,
+      forecastEvPct: o.evAfterCostPct,
+      depthCoverage: o.depthCoverage,
+      spreadCentsAtEntry: spreadCents,
+      createdAt: Date.now(),
+    };
+    await sendMsg({ type: 'ADD_FORECAST', payload: { forecast: record } });
+    setSavingId(null);
+  };
 
   return (
-    <div className={`kil-exec-card ${verdict}`}>
+    <div className="kil-exec-card">
       <div className="kil-edge-header">
-        <div className="kil-edge-title">Execution Planner</div>
-        <div className={`kil-edge-pill ${verdict === 'skip' ? 'negative' : verdict === 'trade' ? 'positive' : ''}`}>
-          {verdictLabel}
-        </div>
+        <div className="kil-edge-title">Opportunity Scanner</div>
+        <div className="kil-edge-pill">Top 3 setups</div>
       </div>
 
-      <div className="kil-exec-controls">
-        <label className="kil-exec-field">
-          <span>Side</span>
-          <select
-            className="kil-select"
-            value={side}
-            onChange={(e) => setSide(e.target.value as TradeSide)}
-          >
-            <option value="yes">Buy YES</option>
-            <option value="no">Buy NO</option>
-          </select>
-        </label>
-        <label className="kil-exec-field">
-          <span>Size (USD)</span>
-          <input
-            type="number"
-            className="kil-input-small"
-            value={notional}
-            min={1}
-            step={50}
-            onChange={(e) => setNotional(e.target.value)}
-          />
-        </label>
+      <div className="kil-exec-controls" style={{ marginBottom: 10 }}>
+        <label className="kil-exec-field"><span>Min EV %</span><input className="kil-input-small" type="number" step="0.1" value={evMinPct} onChange={(e) => setEvMinPct(e.target.value)} /></label>
+        <label className="kil-exec-field"><span>Max Spread c</span><input className="kil-input-small" type="number" step="0.5" value={spreadMaxCents} onChange={(e) => setSpreadMaxCents(e.target.value)} /></label>
+        <label className="kil-exec-field"><span>Min Depth %</span><input className="kil-input-small" type="number" step="5" value={depthMinPct} onChange={(e) => setDepthMinPct(e.target.value)} /></label>
+        <label className="kil-exec-field"><span>Min Conf %</span><input className="kil-input-small" type="number" step="5" value={confidenceMinPct} onChange={(e) => setConfidenceMinPct(e.target.value)} /></label>
       </div>
 
-      <div className="kil-edge-grid">
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Est Fill</div>
-          <div className="kil-edge-value">{effectiveFillCents.toFixed(1)}c</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Slippage</div>
-          <div className="kil-edge-value">{slippageCents.toFixed(1)}c</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className="kil-edge-label">Break-even P</div>
-          <div className="kil-edge-value">{breakEvenProbPct.toFixed(1)}%</div>
-        </div>
-        <div className="kil-edge-stat">
-          <div className={`kil-edge-label ${grossEvPct < 0 ? 'negative' : ''}`}>EV After Cost</div>
-          <div className={`kil-edge-value ${grossEvPct < 0 ? 'negative' : 'positive'}`}>{grossEvPct.toFixed(2)}%</div>
-        </div>
-      </div>
+      <ul className="kil-review-list">
+        {ranked.map((o) => {
+          const itemId = `${o.side}-${o.sizeUsd}-${o.effectiveFillCents.toFixed(2)}`;
+          return (
+            <li key={itemId} className={`kil-review-item ${o.gatePass ? '' : 'disabled'}`}>
+              <div className="kil-review-title">
+                {o.side.toUpperCase()} ${o.sizeUsd} {o.gatePass ? '• Gate PASS' : '• Gate BLOCKED'}
+              </div>
+              <div className="kil-review-meta">
+                <span>EV {o.evAfterCostPct.toFixed(2)}%</span>
+                <span>Fill {o.effectiveFillCents.toFixed(1)}c</span>
+                <span>Slip {o.slippageCents.toFixed(1)}c</span>
+                <span>Depth {(o.depthCoverage * 100).toFixed(0)}%</span>
+                <span>BE {o.breakEvenProbPct.toFixed(1)}%</span>
+              </div>
+              {!o.gatePass && (
+                <div className="kil-edge-hint" style={{ color: 'var(--accent-warn)' }}>
+                  Blockers: {o.gateReasons.join(', ')}
+                </div>
+              )}
+              <div style={{ marginTop: 6 }}>
+                <button
+                  className="kil-btn"
+                  disabled={!o.gatePass || savingId === itemId}
+                  onClick={() => void handleIntent(o)}
+                >
+                  {savingId === itemId ? 'Saving...' : 'Mark Trade Intent'}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
       <div className="kil-edge-hint">
-        {depthFill.usedDepth && depthFill.fillRatio > 0
-          ? `Depth model: ${(depthFill.fillRatio * 100).toFixed(0)}% size covered by visible book.`
-          : 'Heuristic model using spread + 24h volume participation (depth unavailable).'}
+        Scanner ranks side+size combinations by EV after cost and enforces hard gate rules before intent logging.
       </div>
-      {depthFill.usedDepth && depthFill.fillRatio < 1 && (
-        <div className="kil-edge-hint" style={{ color: 'var(--accent-warn)' }}>
-          Liquidity warning: only {(depthFill.fillRatio * 100).toFixed(0)}% of requested size visible in book.
-        </div>
-      )}
     </div>
   );
 }
@@ -329,18 +357,12 @@ export function IntelligenceBlock({ market, history, event, thesis, orderBook }:
 
   return (
     <div>
-      {/* Title */}
       <div className="kil-market-title">{market.title}</div>
-      {market.subtitle && (
-        <div className="kil-market-subtitle">{market.subtitle}</div>
-      )}
+      {market.subtitle && <div className="kil-market-subtitle">{market.subtitle}</div>}
 
-      {/* Status + ticker */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
         <StatusBadge status={market.status} />
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-          {market.ticker}
-        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{market.ticker}</span>
         {lastUpdated && (
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
             <span className="kil-live-dot" />
@@ -349,69 +371,35 @@ export function IntelligenceBlock({ market, history, event, thesis, orderBook }:
         )}
       </div>
 
-      {/* Probability */}
       <div className="kil-prob-row">
         <span className="kil-prob-value">{probPct.toFixed(1)}%</span>
         <span className="kil-prob-label">YES</span>
-        {spread > 0 && (
-          <span className="kil-prob-spread">
-            Spread: {spread}c
-          </span>
-        )}
+        {spread > 0 && <span className="kil-prob-spread">Spread: {spread}c</span>}
       </div>
 
-      {/* Probability bar */}
-      <div className="kil-prob-bar">
-        <div
-          className="kil-prob-bar-fill"
-          style={{ width: `${probPct}%` }}
-        />
-      </div>
+      <div className="kil-prob-bar"><div className="kil-prob-bar-fill" style={{ width: `${probPct}%` }} /></div>
 
       <EdgeCard market={market} thesis={thesis} />
-      <ExecutionPlanner market={market} thesis={thesis} orderBook={orderBook} />
+      <OpportunityScanner market={market} thesis={thesis} orderBook={orderBook} />
 
-      {/* Multi-outcome indicator */}
       {event?.isMultiOutcome && (
         <div className="kil-multi-outcome-hint">
           Part of {event.markets.length}-outcome event
-          {event.hasArbitrage && (
-            <span className="kil-sum-inline">
-              ({'\u03A3'} {(event.probabilitySum * 100).toFixed(1)}%)
-            </span>
-          )}
+          {event.hasArbitrage && <span className="kil-sum-inline">({String.fromCharCode(931)} {(event.probabilitySum * 100).toFixed(1)}%)</span>}
         </div>
       )}
 
-      {/* Stats grid */}
       <div className="kil-stats-grid">
-        <div className="kil-stat">
-          <div className="kil-stat-label">Volume</div>
-          <div className="kil-stat-value">{formatNumber(market.volume)}</div>
-        </div>
-        <div className="kil-stat">
-          <div className="kil-stat-label">24h Volume</div>
-          <div className="kil-stat-value">{formatNumber(market.volume24h)}</div>
-        </div>
-        <div className="kil-stat">
-          <div className="kil-stat-label">Open Interest</div>
-          <div className="kil-stat-value">{formatNumber(market.openInterest)}</div>
-        </div>
-        <div className="kil-stat">
-          <div className="kil-stat-label">Closes</div>
-          <div className="kil-stat-value" style={{ fontSize: 11 }}>
-            {formatDate(market.closeTime)}
-          </div>
-        </div>
+        <div className="kil-stat"><div className="kil-stat-label">Volume</div><div className="kil-stat-value">{formatNumber(market.volume)}</div></div>
+        <div className="kil-stat"><div className="kil-stat-label">24h Volume</div><div className="kil-stat-value">{formatNumber(market.volume24h)}</div></div>
+        <div className="kil-stat"><div className="kil-stat-label">Open Interest</div><div className="kil-stat-value">{formatNumber(market.openInterest)}</div></div>
+        <div className="kil-stat"><div className="kil-stat-label">Closes</div><div className="kil-stat-value" style={{ fontSize: 11 }}>{formatDate(market.closeTime)}</div></div>
       </div>
 
-      {/* Bid/Ask detail */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <div className="kil-stat" style={{ flex: 1 }}>
           <div className="kil-stat-label">Yes Bid / Ask</div>
-          <div className="kil-stat-value">
-            {market.yesBid}c / {market.yesAsk}c
-          </div>
+          <div className="kil-stat-value">{market.yesBid}c / {market.yesAsk}c</div>
         </div>
         <div className="kil-stat" style={{ flex: 1 }}>
           <div className="kil-stat-label">Last Price</div>
@@ -419,7 +407,6 @@ export function IntelligenceBlock({ market, history, event, thesis, orderBook }:
         </div>
       </div>
 
-      {/* Sparkline */}
       <div className="kil-sparkline-container">
         <div className="kil-sparkline-label">Probability History</div>
         <Sparkline data={history} />

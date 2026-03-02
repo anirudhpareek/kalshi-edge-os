@@ -1217,6 +1217,10 @@
   background: var(--panel-bg);
 }
 
+.kil-review-item.disabled {
+  opacity: 0.7;
+}
+
 .kil-review-title {
   font-size: 12px;
   color: var(--text-primary);
