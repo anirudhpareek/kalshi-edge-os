@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type {
   MarketModel,
   EventModel,
@@ -11,6 +11,11 @@ import type {
   ForecastRecord,
 } from '../../../lib/types';
 import { parseProbabilityInput } from '../../../lib/edge';
+import {
+  calibrationGateTightening,
+  hourlyLiquidityMultiplierET,
+  priceBucketPriorEvAdjustmentPct,
+} from '../../../lib/scoringAdjustments';
 
 interface Props {
   market: MarketModel;
@@ -31,6 +36,8 @@ interface Opportunity {
   depthGateApplies: boolean;
   evAfterCostPct: number;
   breakEvenProbPct: number;
+  priorAdjPct: number;
+  timeAdjPct: number;
   actionScore: number;
   scoreReasons: string[];
   gatePass: boolean;
@@ -181,16 +188,35 @@ function OpportunityScanner({
   const [confidenceMinPct, setConfidenceMinPct] = useState('60');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [forecastContext, setForecastContext] = useState<ForecastRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadForecastContext = async () => {
+      const res = await sendMsg<ForecastRecord[]>({ type: 'GET_FORECASTS', payload: {} });
+      if (active && res.ok && res.data) {
+        setForecastContext(res.data);
+      }
+    };
+    void loadForecastContext();
+    const id = setInterval(loadForecastContext, 60_000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
 
   if (trueProb == null) {
     return null;
   }
 
+  const tighten = calibrationGateTightening(forecastContext);
+
   const gate = {
-    evMin: parseFloat(evMinPct) || 0,
-    spreadMax: parseFloat(spreadMaxCents) || 100,
+    evMin: (parseFloat(evMinPct) || 0) + tighten.evBumpPct,
+    spreadMax: Math.max(0.5, (parseFloat(spreadMaxCents) || 100) - tighten.spreadPenaltyCents),
     depthMin: (parseFloat(depthMinPct) || 0) / 100,
-    confidenceMin: (parseFloat(confidenceMinPct) || 0) / 100,
+    confidenceMin: Math.min(0.95, (parseFloat(confidenceMinPct) || 0) / 100 + tighten.confidenceBumpPct),
   };
 
   const spreadCents = Math.max(0, market.yesAsk - market.yesBid);
@@ -206,7 +232,7 @@ function OpportunityScanner({
       const depthGateApplies = depthLevels.length > 0;
       const depthFill = estimateFillFromDepth(depthLevels, sizeUsd, baseFillCents / 100);
       const fallbackSlippage = estimateSlippageCents(sizeUsd, market.volume24h, spreadCents);
-      const effectiveFillCents = Math.max(
+      const rawFillCents = Math.max(
         1,
         Math.min(
           99,
@@ -215,9 +241,16 @@ function OpportunityScanner({
             : baseFillCents + fallbackSlippage
         )
       );
+      const liqMult = hourlyLiquidityMultiplierET();
+      const effectiveFillCents = Math.max(
+        1,
+        Math.min(99, baseFillCents + (rawFillCents - baseFillCents) * liqMult)
+      );
       const slippageCents = Math.max(0, effectiveFillCents - baseFillCents);
       const trueWinProb = side === 'yes' ? trueProb : (1 - trueProb);
-      const evAfterCostPct = (trueWinProb - effectiveFillCents / 100) * 100;
+      const priorAdjPct = priceBucketPriorEvAdjustmentPct(side, effectiveFillCents);
+      const timeAdjPct = (rawFillCents - effectiveFillCents) / 100;
+      const evAfterCostPct = (trueWinProb - effectiveFillCents / 100) * 100 + priorAdjPct;
       const breakEvenProbPct = (effectiveFillCents / 100) * 100;
       const depthCoverage = depthFill.usedDepth ? depthFill.fillRatio : 0;
 
@@ -253,6 +286,8 @@ function OpportunityScanner({
         depthGateApplies,
         evAfterCostPct,
         breakEvenProbPct,
+        priorAdjPct,
+        timeAdjPct,
         actionScore,
         scoreReasons,
         gatePass: reasons.length === 0,
@@ -323,6 +358,9 @@ function OpportunityScanner({
                 <span>Depth {o.depthGateApplies ? `${(o.depthCoverage * 100).toFixed(0)}%` : 'N/A'}</span>
                 <span>BE {o.breakEvenProbPct.toFixed(1)}%</span>
               </div>
+              <div className="kil-edge-hint">
+                Adj: prior {o.priorAdjPct >= 0 ? '+' : ''}{o.priorAdjPct.toFixed(2)}%, time {o.timeAdjPct.toFixed(2)}%
+              </div>
               <div className="kil-edge-hint">Score drivers: {o.scoreReasons.join(', ')}</div>
               {!o.gatePass && (
                 <div className="kil-edge-hint" style={{ color: 'var(--accent-warn)' }}>
@@ -352,6 +390,11 @@ function OpportunityScanner({
       <div className="kil-edge-hint">
         Scanner ranks side+size combinations by EV after cost and enforces hard gate rules before intent logging.
       </div>
+      {tighten.meanBrier != null && (
+        <div className="kil-edge-hint">
+          Calibration drift active (recent mean Brier {tighten.meanBrier.toFixed(3)}): gate tightened.
+        </div>
+      )}
     </div>
   );
 }
