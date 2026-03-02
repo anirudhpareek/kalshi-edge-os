@@ -36,10 +36,9 @@ export function useMarketData(ticker: string | null, url: string) {
     if (!ticker && !url) return;
     setLoading((p) => (market ? p : true));
 
-    // Prefer URL-based lookup because fetchMarketForURL correctly handles
-    // series/event/market routing. The ticker extracted from URL paths is
-    // often a series ticker (e.g. KXBTC) which 404s on /markets/{ticker}.
-    const payload = url ? { url } : { ticker };
+    // Send both when available: background resolver will prefer a precise
+    // market ticker and fall back to URL-based event routing if needed.
+    const payload = { ticker, url };
     const res = await sendMsg<MarketModel>({
       type: 'FETCH_MARKET',
       payload,

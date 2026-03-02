@@ -261,7 +261,16 @@ export async function fetchMarketForURL(url: string): Promise<MarketModel | null
   if (parsed.type === 'event') {
     try {
       const { markets } = await fetchEventByTicker(parsed.ticker);
-      if (markets.length > 0) return markets[0];
+      if (markets.length > 0) {
+        // Deterministic fallback market selection for event URLs.
+        // Prefer the most liquid/open-interest market instead of raw array order.
+        const ranked = [...markets].sort((a, b) => {
+          if (b.openInterest !== a.openInterest) return b.openInterest - a.openInterest;
+          if (b.volume24h !== a.volume24h) return b.volume24h - a.volume24h;
+          return b.volume - a.volume;
+        });
+        return ranked[0];
+      }
     } catch {
       // Event lookup failed — try as market ticker instead
       console.log('[KalshiClient] Event lookup failed, trying as market ticker:', parsed.ticker);

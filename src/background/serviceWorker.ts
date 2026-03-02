@@ -214,18 +214,26 @@ async function handleMessage(msg: Msg): Promise<MsgResponse> {
       const { ticker, url } = msg.payload as { ticker?: string; url?: string };
 
       if (ticker) {
-        const cache = await getCachedMarket(ticker);
-        const isStale = !cache || Date.now() - cache.fetchedAt > 30_000;
+        try {
+          const cache = await getCachedMarket(ticker);
+          const isStale = !cache || Date.now() - cache.fetchedAt > 30_000;
 
-        let market: MarketModel;
-        if (isStale) {
-          market = await fetchMarketByTicker(ticker);
-          await setCachedMarket(ticker, market);
-          await appendPricePoint(ticker, market.impliedProbability * 100);
-        } else {
-          market = cache.market;
+          let market: MarketModel;
+          if (isStale) {
+            market = await fetchMarketByTicker(ticker);
+            await setCachedMarket(ticker, market);
+            await appendPricePoint(ticker, market.impliedProbability * 100);
+          } else {
+            market = cache.market;
+          }
+          return { ok: true, data: market };
+        } catch (tickerErr) {
+          // If DOM supplied an event/series ticker instead of market ticker,
+          // fall back to URL-based resolver.
+          if (!url) {
+            throw tickerErr;
+          }
         }
-        return { ok: true, data: market };
       }
 
       if (url) {

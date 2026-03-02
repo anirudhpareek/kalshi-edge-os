@@ -27,20 +27,20 @@ function extractTickerFromDOM(): { ticker: string; type: 'market' | 'event' } | 
       //   props.pageProps.eventTicker
       const pageProps = data?.props?.pageProps;
       if (pageProps) {
+        // Prefer specific market ticker when present
+        if (pageProps.market?.ticker) {
+          return { ticker: pageProps.market.ticker, type: 'market' };
+        }
+        if (pageProps.marketTicker) {
+          return { ticker: pageProps.marketTicker, type: 'market' };
+        }
         // Direct event ticker
         if (pageProps.event?.event_ticker) {
           return { ticker: pageProps.event.event_ticker, type: 'event' };
         }
-        // Direct market ticker
-        if (pageProps.market?.ticker) {
-          return { ticker: pageProps.market.ticker, type: 'market' };
-        }
         // Event ticker as a string prop
         if (pageProps.eventTicker) {
           return { ticker: pageProps.eventTicker, type: 'event' };
-        }
-        if (pageProps.marketTicker) {
-          return { ticker: pageProps.marketTicker, type: 'market' };
         }
         // Search recursively for any ticker-like field
         const tickerStr = findTickerInObject(pageProps);
@@ -86,7 +86,7 @@ function findTickerInObject(obj: unknown, depth = 0): string | null {
   const record = obj as Record<string, unknown>;
 
   // Check known ticker field names
-  for (const key of ['event_ticker', 'eventTicker', 'ticker', 'market_ticker', 'marketTicker']) {
+  for (const key of ['market_ticker', 'marketTicker', 'ticker', 'event_ticker', 'eventTicker']) {
     const val = record[key];
     if (typeof val === 'string' && /^[A-Z0-9][A-Z0-9\-]{2,}$/.test(val)) {
       return val;
