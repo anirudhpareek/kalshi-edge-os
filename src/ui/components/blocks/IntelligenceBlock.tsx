@@ -28,6 +28,7 @@ interface Opportunity {
   effectiveFillCents: number;
   slippageCents: number;
   depthCoverage: number;
+  depthGateApplies: boolean;
   evAfterCostPct: number;
   breakEvenProbPct: number;
   actionScore: number;
@@ -179,6 +180,7 @@ function OpportunityScanner({
   const [depthMinPct, setDepthMinPct] = useState('70');
   const [confidenceMinPct, setConfidenceMinPct] = useState('60');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (trueProb == null) {
     return null;
@@ -201,6 +203,7 @@ function OpportunityScanner({
     for (const sizeUsd of sizes) {
       const baseFillCents = side === 'yes' ? market.yesAsk : market.noAsk;
       const depthLevels = side === 'yes' ? (orderBook?.yes ?? []) : (orderBook?.no ?? []);
+      const depthGateApplies = depthLevels.length > 0;
       const depthFill = estimateFillFromDepth(depthLevels, sizeUsd, baseFillCents / 100);
       const fallbackSlippage = estimateSlippageCents(sizeUsd, market.volume24h, spreadCents);
       const effectiveFillCents = Math.max(
@@ -220,7 +223,9 @@ function OpportunityScanner({
 
       const evScore = clamp((evAfterCostPct / Math.max(gate.evMin, 0.5)) * 35, 0, 35);
       const spreadScore = clamp(((gate.spreadMax - spreadCents) / Math.max(gate.spreadMax, 1)) * 20, 0, 20);
-      const depthScore = clamp((depthCoverage / Math.max(gate.depthMin, 0.2)) * 25, 0, 25);
+      const depthScore = depthGateApplies
+        ? clamp((depthCoverage / Math.max(gate.depthMin, 0.2)) * 25, 0, 25)
+        : 12;
       const confVal = confidence ?? 0;
       const confScore = clamp((confVal / Math.max(gate.confidenceMin, 0.2)) * 20, 0, 20);
       const actionScore = evScore + spreadScore + depthScore + confScore;
@@ -228,14 +233,15 @@ function OpportunityScanner({
       const scoreReasons: string[] = [];
       if (evScore < 12) scoreReasons.push('weak EV');
       if (spreadScore < 8) scoreReasons.push('wide spread');
-      if (depthScore < 10) scoreReasons.push('thin depth');
+      if (depthGateApplies && depthScore < 10) scoreReasons.push('thin depth');
+      if (!depthGateApplies) scoreReasons.push('no depth data');
       if (confScore < 8) scoreReasons.push('low confidence');
       if (scoreReasons.length === 0) scoreReasons.push('balanced setup');
 
       const reasons: string[] = [];
       if (evAfterCostPct < gate.evMin) reasons.push(`EV<${gate.evMin.toFixed(1)}%`);
       if (spreadCents > gate.spreadMax) reasons.push(`spread>${gate.spreadMax.toFixed(1)}c`);
-      if (depthCoverage < gate.depthMin) reasons.push(`depth<${(gate.depthMin * 100).toFixed(0)}%`);
+      if (depthGateApplies && depthCoverage < gate.depthMin) reasons.push(`depth<${(gate.depthMin * 100).toFixed(0)}%`);
       if ((confidence ?? 0) < gate.confidenceMin) reasons.push(`conf<${(gate.confidenceMin * 100).toFixed(0)}%`);
 
       opportunities.push({
@@ -244,6 +250,7 @@ function OpportunityScanner({
         effectiveFillCents,
         slippageCents,
         depthCoverage,
+        depthGateApplies,
         evAfterCostPct,
         breakEvenProbPct,
         actionScore,
@@ -259,6 +266,7 @@ function OpportunityScanner({
     .slice(0, 3);
 
   const handleIntent = async (o: Opportunity) => {
+    setSaveError(null);
     const id = `${o.side}-${o.sizeUsd}-${o.effectiveFillCents.toFixed(2)}`;
     setSavingId(id);
     const record: ForecastRecord = {
@@ -278,7 +286,10 @@ function OpportunityScanner({
       category: market.category,
       createdAt: Date.now(),
     };
-    await sendMsg({ type: 'ADD_FORECAST', payload: { forecast: record } });
+    const res = await sendMsg({ type: 'ADD_FORECAST', payload: { forecast: record } });
+    if (!res.ok) {
+      setSaveError(res.error ?? 'Failed to save trade intent');
+    }
     setSavingId(null);
   };
 
@@ -309,7 +320,7 @@ function OpportunityScanner({
                 <span>EV {o.evAfterCostPct.toFixed(2)}%</span>
                 <span>Fill {o.effectiveFillCents.toFixed(1)}c</span>
                 <span>Slip {o.slippageCents.toFixed(1)}c</span>
-                <span>Depth {(o.depthCoverage * 100).toFixed(0)}%</span>
+                <span>Depth {o.depthGateApplies ? `${(o.depthCoverage * 100).toFixed(0)}%` : 'N/A'}</span>
                 <span>BE {o.breakEvenProbPct.toFixed(1)}%</span>
               </div>
               <div className="kil-edge-hint">Score drivers: {o.scoreReasons.join(', ')}</div>
@@ -331,6 +342,12 @@ function OpportunityScanner({
           );
         })}
       </ul>
+
+      {saveError && (
+        <div className="kil-error" style={{ marginTop: 8 }}>
+          {saveError}
+        </div>
+      )}
 
       <div className="kil-edge-hint">
         Scanner ranks side+size combinations by EV after cost and enforces hard gate rules before intent logging.

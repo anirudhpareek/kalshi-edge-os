@@ -39,12 +39,28 @@ function LoadingSkeleton() {
   );
 }
 
-function NonMarketState() {
+function NonMarketState({ currentUrl }: { currentUrl: string }) {
+  const onKalshiDomain = /https:\/\/([a-z0-9-]+\.)?kalshi\.com\//i.test(currentUrl);
   return (
     <div className="kil-non-market">
       <div className="kil-non-market-icon">&#9685;</div>
       <h3>Not a market page</h3>
-      <p>Navigate to a Kalshi market page to activate the intelligence layer.</p>
+      <p>
+        {onKalshiDomain
+          ? 'Open a specific market from Kalshi to activate Edge OS.'
+          : 'Open Kalshi and choose a market to activate Edge OS.'}
+      </p>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+        <a className="kil-btn" href="https://kalshi.com/markets" target="_blank" rel="noreferrer">
+          Open Markets
+        </a>
+        <a className="kil-btn" href="https://kalshi.com/events" target="_blank" rel="noreferrer">
+          Open Events
+        </a>
+      </div>
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+        Tip: Use <strong>Cmd/Ctrl + Shift + K</strong> to toggle this panel.
+      </p>
     </div>
   );
 }
@@ -206,7 +222,7 @@ export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps
         {(sortedBlocks, onReorder) => (
           <>
             {!isMarketPage ? (
-              <NonMarketState />
+              <NonMarketState currentUrl={currentUrl} />
             ) : (
               sortedBlocks.map((block) => renderBlock(block, onReorder))
             )}

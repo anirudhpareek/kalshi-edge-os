@@ -55,15 +55,14 @@ export function ReviewBlock({ market, thesis }: Props) {
     if (refreshed.ok && refreshed.data) {
       setForecasts(refreshed.data);
       setError(null);
-      setLoading(false);
-      return;
-    }
-    const fallback = await sendMsg<ForecastRecord[]>({ type: 'GET_FORECASTS', payload: {} });
-    if (fallback.ok && fallback.data) {
-      setForecasts(fallback.data);
-      setError(null);
     } else {
-      setError(fallback.error ?? 'Failed to load forecasts');
+      const fallback = await sendMsg<ForecastRecord[]>({ type: 'GET_FORECASTS', payload: {} });
+      if (fallback.ok && fallback.data) {
+        setForecasts(fallback.data);
+        setError(null);
+      } else {
+        setError(fallback.error ?? 'Failed to load forecasts');
+      }
     }
 
     const pos = await sendMsg<PositionSnapshot[]>({ type: 'GET_POSITION_MONITOR', payload: {} });
