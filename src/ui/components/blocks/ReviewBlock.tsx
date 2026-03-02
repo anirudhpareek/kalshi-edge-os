@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ForecastRecord, MarketModel, Msg, MsgResponse, ThesisData } from '../../../lib/types';
+import type {
+  ForecastRecord,
+  MarketModel,
+  Msg,
+  MsgResponse,
+  ThesisData,
+  PositionSnapshot,
+} from '../../../lib/types';
 import { parseProbabilityInput } from '../../../lib/edge';
 
 function sendMsg<T>(msg: Msg): Promise<MsgResponse<T>> {
@@ -34,6 +41,7 @@ interface CalibrationBucket {
 
 export function ReviewBlock({ market, thesis }: Props) {
   const [forecasts, setForecasts] = useState<ForecastRecord[]>([]);
+  const [positions, setPositions] = useState<PositionSnapshot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,6 +64,11 @@ export function ReviewBlock({ market, thesis }: Props) {
       setError(null);
     } else {
       setError(fallback.error ?? 'Failed to load forecasts');
+    }
+
+    const pos = await sendMsg<PositionSnapshot[]>({ type: 'GET_POSITION_MONITOR', payload: {} });
+    if (pos.ok && pos.data) {
+      setPositions(pos.data);
     }
     setLoading(false);
   }, []);
@@ -148,6 +161,21 @@ export function ReviewBlock({ market, thesis }: Props) {
     const forecastEvSum = retentionResolved.reduce((sum, r) => sum + (r.forecastEvPct ?? 0), 0);
     const realizedEvSum = retentionResolved.reduce((sum, r) => sum + (r.realizedEvPct ?? 0), 0);
     const edgeRetention = forecastEvSum > 0 ? realizedEvSum / forecastEvSum : null;
+    const openExposure = positions.reduce((sum, p) => sum + Math.max(0, p.sizeUsd), 0);
+    const bySeries = new Map<string, number>();
+    for (const p of positions) {
+      const key = p.seriesTicker || p.marketTicker.split('-')[0];
+      bySeries.set(key, (bySeries.get(key) ?? 0) + p.sizeUsd);
+    }
+    const concentration = [...bySeries.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([series, exposure]) => ({
+        series,
+        exposure,
+        share: openExposure > 0 ? exposure / openExposure : 0,
+      }));
+    const concentrationWarning = concentration.some((c) => c.share >= 0.5);
 
     return {
       total: forecasts.length,
@@ -158,6 +186,9 @@ export function ReviewBlock({ market, thesis }: Props) {
       overconfident,
       sharpErrorRate,
       edgeRetention,
+      openExposure,
+      concentration,
+      concentrationWarning,
       weekly: {
         intents: weekly.length,
         resolved: weeklyResolved.length,
@@ -167,7 +198,7 @@ export function ReviewBlock({ market, thesis }: Props) {
       worstMistakes,
       recent: forecasts.slice(0, 8),
     };
-  }, [forecasts]);
+  }, [forecasts, positions]);
 
   return (
     <div>
@@ -233,6 +264,45 @@ export function ReviewBlock({ market, thesis }: Props) {
             : 'Model signal: confidence profile is stable at current sample size.'}
         </div>
       )}
+
+      <div className="kil-review-calibration">
+        <div className="kil-sparkline-label">Open Intents Monitor</div>
+        {positions.length === 0 ? (
+          <div className="kil-empty-state">No open intents.</div>
+        ) : (
+          <>
+            <div className="kil-review-row">
+              <span className="kil-review-row-label">
+                Open exposure
+                <span className="kil-review-row-count">all open intents</span>
+              </span>
+              <div className="kil-review-cal-bar">
+                <div className="kil-review-cal-hit" style={{ width: `${Math.min(100, stats.openExposure / 100)}%` }} />
+              </div>
+              <span>${Math.round(stats.openExposure).toLocaleString()}</span>
+            </div>
+            {stats.concentrationWarning && (
+              <div className="kil-review-insight warn" style={{ marginTop: 8 }}>
+                Concentration warning: one series is over 50% of open exposure.
+              </div>
+            )}
+            <ul className="kil-review-list" style={{ marginTop: 8 }}>
+              {positions.slice(0, 6).map((p) => (
+                <li key={p.forecastId} className="kil-review-item">
+                  <div className="kil-review-title">{p.marketTitle}</div>
+                  <div className="kil-review-meta">
+                    <span>{p.side.toUpperCase()} ${Math.round(p.sizeUsd)}</span>
+                    <span>Entry EV {p.entryEvPct.toFixed(2)}%</span>
+                    <span>Now {p.currentEdgePct.toFixed(2)}%</span>
+                    <span className={p.edgeDriftPct < -2 ? 'kil-review-bad' : ''}>Drift {p.edgeDriftPct.toFixed(2)}%</span>
+                    <span>Spread {p.spreadCents.toFixed(1)}c</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
       <div className="kil-review-calibration">
         <div className="kil-sparkline-label">7-Day Report</div>

@@ -106,10 +106,26 @@ export interface ForecastRecord {
   realizedEvPct?: number;
   depthCoverage?: number; // 0..1
   spreadCentsAtEntry?: number;
+  seriesTicker?: string;
+  category?: string;
   createdAt: number;
   resolvedAt?: number;
   outcome?: 0 | 1;
   brierScore?: number;
+}
+
+export interface PositionSnapshot {
+  forecastId: string;
+  marketTicker: string;
+  marketTitle: string;
+  side: 'yes' | 'no';
+  sizeUsd: number;
+  entryEvPct: number;
+  currentEdgePct: number;
+  edgeDriftPct: number;
+  spreadCents: number;
+  status: string;
+  seriesTicker?: string;
 }
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
@@ -214,7 +230,8 @@ export type MessageType =
   | 'FETCH_ORDERBOOK'
   | 'ADD_FORECAST'
   | 'GET_FORECASTS'
-  | 'REFRESH_FORECASTS';
+  | 'REFRESH_FORECASTS'
+  | 'GET_POSITION_MONITOR';
 
 export interface Msg<T = Record<string, unknown>> {
   type: MessageType;

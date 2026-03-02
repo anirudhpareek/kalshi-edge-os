@@ -36,6 +36,7 @@ import type {
   Alert,
   MarketModel,
   ForecastRecord,
+  PositionSnapshot,
 } from '../lib/types';
 import { parseProbabilityInput } from '../lib/edge';
 import { brierScore, parseResolvedOutcome, realizedReturnPct } from '../lib/forecast';
@@ -155,6 +156,42 @@ async function refreshForecastResolutions(): Promise<ForecastRecord[]> {
 
   await saveForecasts(next);
   return next;
+}
+
+async function getPositionMonitor(): Promise<PositionSnapshot[]> {
+  const forecasts = await getForecasts();
+  const open = forecasts.filter((f) => f.outcome == null && f.side && f.sizeUsd && f.sizeUsd > 0);
+  const snapshots: PositionSnapshot[] = [];
+
+  for (const record of open.slice(0, 80)) {
+    try {
+      const market = await fetchMarketByTicker(record.marketTicker);
+      const side = record.side ?? 'yes';
+      const trueWinProb = side === 'yes'
+        ? record.forecastProbability
+        : (1 - record.forecastProbability);
+      const currentCost = side === 'yes' ? (market.yesAsk / 100) : (market.noAsk / 100);
+      const currentEdgePct = (trueWinProb - currentCost) * 100;
+      const entryEvPct = record.forecastEvPct ?? 0;
+      snapshots.push({
+        forecastId: record.id,
+        marketTicker: record.marketTicker,
+        marketTitle: record.marketTitle,
+        side,
+        sizeUsd: record.sizeUsd ?? 0,
+        entryEvPct,
+        currentEdgePct,
+        edgeDriftPct: currentEdgePct - entryEvPct,
+        spreadCents: Math.max(0, market.yesAsk - market.yesBid),
+        status: market.status,
+        seriesTicker: record.seriesTicker,
+      });
+    } catch (error) {
+      console.warn('[KalshiIntel] Position monitor failed for', record.marketTicker, error);
+    }
+  }
+
+  return snapshots.sort((a, b) => a.edgeDriftPct - b.edgeDriftPct);
 }
 
 // ─── Message Handling ─────────────────────────────────────────────────────────
@@ -278,6 +315,11 @@ async function handleMessage(msg: Msg): Promise<MsgResponse> {
     case 'REFRESH_FORECASTS': {
       const forecasts = await refreshForecastResolutions();
       return { ok: true, data: forecasts };
+    }
+
+    case 'GET_POSITION_MONITOR': {
+      const snapshots = await getPositionMonitor();
+      return { ok: true, data: snapshots };
     }
 
     default:

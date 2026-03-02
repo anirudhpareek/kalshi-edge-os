@@ -30,8 +30,14 @@ interface Opportunity {
   depthCoverage: number;
   evAfterCostPct: number;
   breakEvenProbPct: number;
+  actionScore: number;
+  scoreReasons: string[];
   gatePass: boolean;
   gateReasons: string[];
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
 }
 
 function sendMsg<T>(msg: Msg): Promise<MsgResponse<T>> {
@@ -245,6 +251,20 @@ function OpportunityScanner({
       const breakEvenProbPct = (effectiveFillCents / 100) * 100;
       const depthCoverage = depthFill.usedDepth ? depthFill.fillRatio : 0;
 
+      const evScore = clamp((evAfterCostPct / Math.max(gate.evMin, 0.5)) * 35, 0, 35);
+      const spreadScore = clamp(((gate.spreadMax - spreadCents) / Math.max(gate.spreadMax, 1)) * 20, 0, 20);
+      const depthScore = clamp((depthCoverage / Math.max(gate.depthMin, 0.2)) * 25, 0, 25);
+      const confVal = confidence ?? 0;
+      const confScore = clamp((confVal / Math.max(gate.confidenceMin, 0.2)) * 20, 0, 20);
+      const actionScore = evScore + spreadScore + depthScore + confScore;
+
+      const scoreReasons: string[] = [];
+      if (evScore < 12) scoreReasons.push('weak EV');
+      if (spreadScore < 8) scoreReasons.push('wide spread');
+      if (depthScore < 10) scoreReasons.push('thin depth');
+      if (confScore < 8) scoreReasons.push('low confidence');
+      if (scoreReasons.length === 0) scoreReasons.push('balanced setup');
+
       const reasons: string[] = [];
       if (evAfterCostPct < gate.evMin) reasons.push(`EV<${gate.evMin.toFixed(1)}%`);
       if (spreadCents > gate.spreadMax) reasons.push(`spread>${gate.spreadMax.toFixed(1)}c`);
@@ -259,6 +279,8 @@ function OpportunityScanner({
         depthCoverage,
         evAfterCostPct,
         breakEvenProbPct,
+        actionScore,
+        scoreReasons,
         gatePass: reasons.length === 0,
         gateReasons: reasons,
       });
@@ -266,7 +288,7 @@ function OpportunityScanner({
   }
 
   const ranked = [...opportunities]
-    .sort((a, b) => b.evAfterCostPct - a.evAfterCostPct)
+    .sort((a, b) => b.actionScore - a.actionScore || b.evAfterCostPct - a.evAfterCostPct)
     .slice(0, 3);
 
   const handleIntent = async (o: Opportunity) => {
@@ -285,6 +307,8 @@ function OpportunityScanner({
       forecastEvPct: o.evAfterCostPct,
       depthCoverage: o.depthCoverage,
       spreadCentsAtEntry: spreadCents,
+      seriesTicker: market.seriesTicker,
+      category: market.category,
       createdAt: Date.now(),
     };
     await sendMsg({ type: 'ADD_FORECAST', payload: { forecast: record } });
@@ -314,12 +338,14 @@ function OpportunityScanner({
                 {o.side.toUpperCase()} ${o.sizeUsd} {o.gatePass ? '• Gate PASS' : '• Gate BLOCKED'}
               </div>
               <div className="kil-review-meta">
+                <span>Score {o.actionScore.toFixed(0)}</span>
                 <span>EV {o.evAfterCostPct.toFixed(2)}%</span>
                 <span>Fill {o.effectiveFillCents.toFixed(1)}c</span>
                 <span>Slip {o.slippageCents.toFixed(1)}c</span>
                 <span>Depth {(o.depthCoverage * 100).toFixed(0)}%</span>
                 <span>BE {o.breakEvenProbPct.toFixed(1)}%</span>
               </div>
+              <div className="kil-edge-hint">Score drivers: {o.scoreReasons.join(', ')}</div>
               {!o.gatePass && (
                 <div className="kil-edge-hint" style={{ color: 'var(--accent-warn)' }}>
                   Blockers: {o.gateReasons.join(', ')}
