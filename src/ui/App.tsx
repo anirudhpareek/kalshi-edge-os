@@ -51,11 +51,11 @@ function NonMarketState({ currentUrl }: { currentUrl: string }) {
           : 'Open Kalshi and choose a market to activate Edge OS.'}
       </p>
       <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-        <a className="kil-btn" href="https://kalshi.com/markets" target="_blank" rel="noreferrer">
-          Open Markets
+        <a className="kil-btn" href="https://kalshi.com" target="_blank" rel="noreferrer">
+          Open Kalshi
         </a>
-        <a className="kil-btn" href="https://kalshi.com/events" target="_blank" rel="noreferrer">
-          Open Events
+        <a className="kil-btn" href="https://help.kalshi.com/navigating-the-exchange/finding-markets" target="_blank" rel="noreferrer">
+          Find Markets Guide
         </a>
       </div>
       <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
