@@ -193,9 +193,9 @@ export const DEFAULT_PREFS: UserPrefs = {
 };
 
 const MODE_BLOCKS: Record<WorkMode, BlockType[]> = {
-  quick: ['intelligence', 'alerts', 'thesis'],
-  deep: ['intelligence', 'outcomes', 'context', 'thesis', 'related', 'alerts'],
-  review: ['review', 'intelligence', 'thesis', 'alerts', 'outcomes'],
+  quick: ['intelligence', 'alerts'],
+  deep: ['intelligence', 'outcomes', 'context', 'related', 'alerts', 'thesis'],
+  review: ['review', 'thesis'],
 };
 
 export function blocksForMode(mode: WorkMode): BlockConfig[] {

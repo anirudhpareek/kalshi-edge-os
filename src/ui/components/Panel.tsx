@@ -24,15 +24,6 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="8" cy="8" r="2.5" />
-      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.3 3.3l1.4 1.4M11.3 11.3l1.4 1.4M3.3 12.7l1.4-1.4M11.3 4.7l1.4-1.4" />
-    </svg>
-  );
-}
-
 export function Panel({ prefs, onPrefsChange, children }: Props) {
   const [collapsed, setCollapsed] = useState(!prefs.panelOpen);
   const [width, setWidth] = useState(prefs.panelWidth);
@@ -111,12 +102,6 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
     void onPrefsChange({ blocks: updated });
   }, [prefs.blocks, onPrefsChange]);
 
-  const openSettings = useCallback(() => {
-    if (chrome.runtime.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    }
-  }, []);
-
   const setMode = useCallback((mode: WorkMode) => {
     void onPrefsChange({
       mode,
@@ -161,15 +146,6 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
             </button>
             <button className={`kil-mode-btn ${prefs.mode === 'review' ? 'active' : ''}`} onClick={() => setMode('review')}>
               Review
-            </button>
-          </div>
-          <div className="kil-header-actions">
-            <button
-              className="kil-icon-btn"
-              onClick={openSettings}
-              title="Settings (Theme, Blocks, Alerts)"
-            >
-              <SettingsIcon />
             </button>
           </div>
         </div>

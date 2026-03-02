@@ -15,33 +15,35 @@ function formatPct(value: number): string {
 
 function OutcomeRow({
   market,
+  rank,
   isCurrent,
 }: {
   market: MarketModel;
+  rank: number;
   isCurrent: boolean;
 }) {
-  const probPct = (market.impliedProbability * 100).toFixed(0);
-  const color =
-    market.impliedProbability > 0.5
-      ? 'var(--positive)'
-      : market.impliedProbability < 0.2
-        ? 'var(--text-muted)'
-        : 'var(--text-primary)';
+  const probPct = (market.impliedProbability * 100).toFixed(1);
+  const spread = market.yesAsk - market.yesBid;
 
   return (
     <div
       className={`kil-outcome-row ${isCurrent ? 'current' : ''}`}
-      title={market.ticker}
+      title={`${market.title} • ${probPct}% implied`}
     >
-      <span
-        className="kil-outcome-prob"
-        style={{ color }}
-      >
+      <span className="kil-outcome-rank">
+        #{rank}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span className="kil-outcome-title">{market.title}</span>
+        <div className="kil-outcome-bar-wrap" title={`Implied chance ${probPct}%`}>
+          <div className="kil-outcome-bar-fill" style={{ width: `${market.impliedProbability * 100}%` }} />
+        </div>
+      </div>
+      <span className="kil-outcome-prob">
         {probPct}%
       </span>
-      <span className="kil-outcome-title">{market.title}</span>
-      <span className="kil-outcome-spread">
-        {market.yesBid}/{market.yesAsk}
+      <span className="kil-outcome-spread" title="Yes bid/ask spread">
+        {spread}c
       </span>
     </div>
   );
@@ -77,19 +79,13 @@ export function OutcomesBlock({ event, loading, currentMarketTicker }: Props) {
       {/* Header with sum badge */}
       <div className="kil-outcomes-header">
         <span className="kil-outcomes-count">
-          {markets.length} outcomes
+          {markets.length} possible outcomes
         </span>
         <span
           className={`kil-sum-badge ${hasArbitrage ? 'warning' : ''}`}
-          title={`Probabilities sum to ${formatPct(probabilitySum)}. ${
-            hasArbitrage
-              ? probabilitySum > 1
-                ? 'Sum > 100% suggests overpricing.'
-                : 'Sum < 100% suggests potential value.'
-              : 'Near 100% indicates efficient pricing.'
-          }`}
+          title="Book total across all outcomes"
         >
-          {'\u03A3'} {formatPct(probabilitySum)}
+          Book Total: {formatPct(probabilitySum)}
         </span>
       </div>
 
@@ -97,17 +93,18 @@ export function OutcomesBlock({ event, loading, currentMarketTicker }: Props) {
       {hasArbitrage && (
         <div className="kil-arbitrage-hint">
           {probabilitySum > 1
-            ? 'Sum > 100%: prices may be inflated'
-            : 'Sum < 100%: potential value opportunity'}
+            ? 'Book Total is above 100%: market may be expensive overall.'
+            : 'Book Total is below 100%: check for potential value setups.'}
         </div>
       )}
 
       {/* Outcome list */}
       <div className="kil-outcomes-list">
-        {displayMarkets.map((m) => (
+        {displayMarkets.map((m, idx) => (
           <OutcomeRow
             key={m.ticker}
             market={m}
+            rank={idx + 1}
             isCurrent={m.ticker === currentMarketTicker}
           />
         ))}
