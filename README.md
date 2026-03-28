@@ -2,6 +2,12 @@
 
 A Chrome Extension (Manifest V3) that transforms Kalshi market pages into a customizable intelligence workspace.
 
+## Public Links
+
+- Website: https://kalshi-intelligence-site.vercel.app/
+- Privacy Policy: https://kalshi-intelligence-site.vercel.app/privacy.html
+- Source / Issues: https://github.com/anirudhpareek/kalshi-edge-os
+
 ## Features
 
 - **Intelligence Block**: Live probability, bid/ask spread, volume, open interest, and a sparkline chart that builds over time via 30-second polling.
@@ -13,7 +19,7 @@ A Chrome Extension (Manifest V3) that transforms Kalshi market pages into a cust
 - Resizable panel width (drag the left edge)
 - Block drag-and-drop reordering
 - Dark/Light/System theme
-- All data stays local (thesis, layout, alerts, caches)
+- All data stays local on the device (thesis, layout, alerts, caches)
 
 ## Requirements
 
@@ -25,7 +31,7 @@ A Chrome Extension (Manifest V3) that transforms Kalshi market pages into a cust
 
 ```bash
 # 1. Navigate to the project directory
-cd kalshi-intelligence
+cd kalshi-edge-os
 
 # 2. Install dependencies
 npm install
@@ -44,7 +50,7 @@ The built extension will be in the `dist/` directory.
 1. Open Chrome and navigate to `chrome://extensions`
 2. Enable **Developer mode** (toggle in the top right)
 3. Click **Load unpacked**
-4. Select the `dist/` folder inside the `kalshi-intelligence` directory
+4. Select the `dist/` folder inside the `kalshi-edge-os` directory
 5. The extension icon should appear in your toolbar
 
 ## Testing on Kalshi Pages
@@ -71,7 +77,7 @@ Note: Alerts only fire while Chrome is running. The service worker is active as 
 
 ## How to Enable AI Summaries (Optional)
 
-1. Open Settings via the gear icon in the panel, or go to `chrome://extensions` and click the extension's options
+1. Open `chrome://extensions`, find the extension card, and open the extension's options page
 2. Enable "AI summaries" toggle
 3. Enter your Anthropic API key (starts with `sk-ant-`)
 4. The Context block will now show a 4-bullet AI summary of headlines
@@ -131,13 +137,13 @@ src/
 | `storage` | Save prefs, thesis, alerts, and caches |
 | `notifications` | Show alert notifications |
 | `alarms` | Periodic polling (MV3 service workers require alarms for persistence) |
-| `activeTab` | Access current tab URL |
 | Host: `kalshi.com/*` | Content script injection |
-| Host: `trading-api.kalshi.com/*` | Kalshi public API calls |
+| Host: `api.elections.kalshi.com/*` | Kalshi public API calls |
 | Host: `news.google.com/*` | Google News RSS fetching |
+| Host: `api.anthropic.com/*` | Optional AI summaries |
 
 ## Data Sources
 
-- **Market data**: Kalshi Trade API v2 (`https://trading-api.kalshi.com/trade-api/v2`) - public endpoints, no authentication required
+- **Market data**: Kalshi Trade API v2 (`https://api.elections.kalshi.com/trade-api/v2`) - public endpoints, no authentication required
 - **News**: Google News RSS search (`https://news.google.com/rss/search?q=QUERY`)
 - **Price history**: Local cache only (polled every 30s, stored in `chrome.storage.local`)

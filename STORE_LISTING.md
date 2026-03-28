@@ -13,7 +13,7 @@ Research sidebar for Kalshi: live market data, multi-outcome views, news context
 
 ## Detailed Description (16,000 chars max)
 
-Kalshi Intelligence Layer adds a powerful research sidebar to Kalshi.com, helping traders make better-informed decisions without leaving the page.
+Kalshi Intelligence Layer adds a research sidebar to Kalshi.com, helping traders review market data, news context, alerts, and personal thesis without leaving the page.
 
 **FEATURES**
 
@@ -24,15 +24,14 @@ Market Intelligence
 • Price history that builds as you watch
 • Market status and close time
 
-Multi-Outcome Markets
-• See all outcomes in one view, sorted by probability
-• Probability sum indicator (Σ) shows market efficiency
-• Arbitrage detection when prices are mispriced
-• Current outcome highlighted for context
+Event Markets
+• View linked markets for the same event in one place
+• Combined implied indicator for quick comparison
+• Current market highlighted for context
 
 News Context
 • Relevant headlines pulled automatically from Google News
-• Source attribution and time stamps
+• Source attribution and timestamps
 • Optional AI summaries (requires your own Anthropic API key)
 • Updates every 15 minutes
 
@@ -44,14 +43,14 @@ Related Markets
 Price Alerts
 • Set alerts when price goes above/below a threshold
 • Movement alerts for sudden price swings
-• Preset buttons for common thresholds (30%, 50%, 70%)
-• Browser notifications while Kalshi is open
+• Preset buttons for common thresholds
+• Browser notifications while Chrome is open
 
 Thesis Tracking
 • Record your probability estimate for each market
-• Document your reasoning and key assumptions
+• Document your reasoning and assumptions
 • Note what evidence would change your mind
-• Auto-saves locally per market
+• Auto-saves locally on your device
 
 **CUSTOMIZATION**
 
@@ -73,16 +72,15 @@ See full privacy policy: https://kalshi-intelligence-site.vercel.app/privacy.htm
 
 **PERMISSIONS EXPLAINED**
 
-• storage: Save your preferences and notes locally
+• storage: Save preferences, thesis notes, alerts, and cached data locally
 • notifications: Send price alert notifications
 • alarms: Check prices periodically for alerts
-• activeTab: Detect when you're on a Kalshi market page
-• Host permissions: Access Kalshi pages and fetch public market data
+• Host permissions: Access Kalshi pages plus the external services the extension actually calls (Kalshi API, Google News RSS, Anthropic for optional summaries)
 
 **SUPPORT**
 
 Questions or issues? Open a ticket on GitHub:
-https://github.com/anirudhpareek/kalshi-intelligence
+https://github.com/anirudhpareek/kalshi-edge-os
 
 ---
 

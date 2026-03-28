@@ -2,6 +2,14 @@
   "name": "kalshi-intelligence-layer",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://kalshi-intelligence-site.vercel.app/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anirudhpareek/kalshi-edge-os.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anirudhpareek/kalshi-edge-os/issues"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",

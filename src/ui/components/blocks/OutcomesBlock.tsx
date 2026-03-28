@@ -13,6 +13,13 @@ function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function getCombinedImpliedHint(probabilitySum: number): string {
+  if (probabilitySum > 1) {
+    return 'Combined implied is above 100%. Read this as a comparison set unless these contracts are mutually exclusive.';
+  }
+  return 'Combined implied is below 100%. If these contracts resolve exclusively, there may be pricing gaps worth reviewing.';
+}
+
 function OutcomeRow({
   market,
   rank,
@@ -26,25 +33,32 @@ function OutcomeRow({
   const spread = market.yesAsk - market.yesBid;
 
   return (
-    <div
-      className={`kil-outcome-row ${isCurrent ? 'current' : ''}`}
-      title={`${market.title} • ${probPct}% implied`}
-    >
+    <div className={`kil-outcome-row ${isCurrent ? 'current' : ''}`}>
       <span className="kil-outcome-rank">
         #{rank}
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span className="kil-outcome-title">{market.title}</span>
-        <div className="kil-outcome-bar-wrap" title={`Implied chance ${probPct}%`}>
+      <div className="kil-outcome-main">
+        <div className="kil-outcome-topline">
+          <div className="kil-outcome-title-wrap">
+            <span className="kil-outcome-title">{market.title}</span>
+            <div className="kil-outcome-meta">
+              {isCurrent && (
+                <span className="kil-outcome-pill kil-outcome-pill-current">Current</span>
+              )}
+              <span className="kil-outcome-pill">
+                {spread > 0 ? `Spread ${spread}c` : 'Tight spread'}
+              </span>
+            </div>
+          </div>
+          <div className="kil-outcome-metrics">
+            <span className="kil-outcome-prob">{probPct}%</span>
+            <span className="kil-outcome-prob-label">implied</span>
+          </div>
+        </div>
+        <div className="kil-outcome-bar-wrap" aria-hidden="true">
           <div className="kil-outcome-bar-fill" style={{ width: `${market.impliedProbability * 100}%` }} />
         </div>
       </div>
-      <span className="kil-outcome-prob">
-        {probPct}%
-      </span>
-      <span className="kil-outcome-spread" title="Yes bid/ask spread">
-        {spread}c
-      </span>
     </div>
   );
 }
@@ -79,22 +93,19 @@ export function OutcomesBlock({ event, loading, currentMarketTicker }: Props) {
       {/* Header with sum badge */}
       <div className="kil-outcomes-header">
         <span className="kil-outcomes-count">
-          {markets.length} possible outcomes
+          {markets.length} linked markets
         </span>
         <span
           className={`kil-sum-badge ${hasArbitrage ? 'warning' : ''}`}
-          title="Book total across all outcomes"
         >
-          Book Total: {formatPct(probabilitySum)}
+          Combined Implied: {formatPct(probabilitySum)}
         </span>
       </div>
 
       {/* Arbitrage warning */}
       {hasArbitrage && (
         <div className="kil-arbitrage-hint">
-          {probabilitySum > 1
-            ? 'Book Total is above 100%: market may be expensive overall.'
-            : 'Book Total is below 100%: check for potential value setups.'}
+          {getCombinedImpliedHint(probabilitySum)}
         </div>
       )}
 

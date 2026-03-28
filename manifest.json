@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kalshi Edge OS",
+  "name": "Kalshi Intelligence Layer",
   "version": "1.0.0",
-  "description": "Edge-focused Kalshi workspace with trade modes, EV checks, and alerts.",
+  "description": "Kalshi research workspace with market data, context, alerts, and thesis tracking.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -11,8 +11,7 @@
   "permissions": [
     "storage",
     "notifications",
-    "alarms",
-    "activeTab"
+    "alarms"
   ],
   "host_permissions": [
     "https://kalshi.com/*",

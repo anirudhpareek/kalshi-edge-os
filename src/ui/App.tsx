@@ -47,8 +47,8 @@ function NonMarketState({ currentUrl }: { currentUrl: string }) {
       <h3>Not a market page</h3>
       <p>
         {onKalshiDomain
-          ? 'Open a specific market from Kalshi to activate Edge OS.'
-          : 'Open Kalshi and choose a market to activate Edge OS.'}
+          ? 'Open a specific market from Kalshi to activate the intelligence panel.'
+          : 'Open Kalshi and choose a market to activate the intelligence panel.'}
       </p>
       <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
         <a className="kil-btn" href="https://kalshi.com" target="_blank" rel="noreferrer">
@@ -67,12 +67,12 @@ function NonMarketState({ currentUrl }: { currentUrl: string }) {
 
 const BLOCK_LABELS: Record<string, string> = {
   intelligence: 'Market Intelligence',
-  outcomes: 'All Outcomes',
+  outcomes: 'Event Markets',
   context: 'Context',
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
-  review: 'Review / Learn',
+  review: 'Review Journal',
 };
 
 export default function App({ marketTicker, isMarketPage, currentUrl }: AppProps) {

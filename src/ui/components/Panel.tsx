@@ -136,13 +136,10 @@ export function Panel({ prefs, onPrefsChange, children }: Props) {
       <div className="kil-panel-inner">
         {/* Header */}
         <div className="kil-header">
-          <div className="kil-header-logo">Kalshi Edge OS</div>
+          <div className="kil-header-logo">Kalshi Intelligence</div>
           <div className="kil-mode-switch" role="tablist" aria-label="Workspace mode">
-            <button className={`kil-mode-btn ${prefs.mode === 'quick' ? 'active' : ''}`} onClick={() => setMode('quick')}>
-              Quick
-            </button>
-            <button className={`kil-mode-btn ${prefs.mode === 'deep' ? 'active' : ''}`} onClick={() => setMode('deep')}>
-              Deep
+            <button className={`kil-mode-btn ${prefs.mode === 'analyze' ? 'active' : ''}`} onClick={() => setMode('analyze')}>
+              Analyze
             </button>
             <button className={`kil-mode-btn ${prefs.mode === 'review' ? 'active' : ''}`} onClick={() => setMode('review')}>
               Review

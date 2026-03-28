@@ -1,5 +1,7 @@
 /**
- * Typed wrappers around chrome.storage.sync (prefs) and chrome.storage.local (caches).
+ * Typed wrappers around chrome.storage.local.
+ * Preferences stay local to the device to keep the Web Store permission and
+ * privacy story as narrow as possible.
  */
 import type {
   UserPrefs,
@@ -10,34 +12,66 @@ import type {
   NewsItem,
   ForecastRecord,
 } from './types';
-import { DEFAULT_PREFS } from './types';
+import { normalizePrefs } from './types';
 
-// ─── Sync Storage: user preferences ──────────────────────────────────────────
+const PREFS_KEY = 'prefs';
 
-export async function getPrefs(): Promise<UserPrefs> {
+async function getStoredPrefs(area: 'local' | 'sync'): Promise<Partial<UserPrefs> | undefined> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['prefs'], (result) => {
-      const stored = result['prefs'] as Partial<UserPrefs> | undefined;
-      resolve({ ...DEFAULT_PREFS, ...stored });
+    chrome.storage[area].get([PREFS_KEY], (result) => {
+      resolve(result[PREFS_KEY] as Partial<UserPrefs> | undefined);
     });
   });
 }
 
-export async function setPrefs(prefs: Partial<UserPrefs>): Promise<void> {
-  const current = await getPrefs();
+async function setStoredPrefs(area: 'local' | 'sync', prefs: UserPrefs): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.storage.sync.set({ prefs: { ...current, ...prefs } }, () => {
+    chrome.storage[area].set({ [PREFS_KEY]: prefs }, () => {
       if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
       else resolve();
     });
   });
 }
 
+async function removeStoredPrefs(area: 'local' | 'sync'): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage[area].remove([PREFS_KEY], () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+// ─── Local Storage: user preferences ─────────────────────────────────────────
+
+export async function getPrefs(): Promise<UserPrefs> {
+  const localPrefs = await getStoredPrefs('local');
+  if (localPrefs) {
+    return normalizePrefs(localPrefs);
+  }
+
+  const syncedPrefs = await getStoredPrefs('sync');
+  if (!syncedPrefs) {
+    return normalizePrefs();
+  }
+
+  const normalized = normalizePrefs(syncedPrefs);
+  await setStoredPrefs('local', normalized);
+  await removeStoredPrefs('sync').catch(() => undefined);
+  return normalized;
+}
+
+export async function setPrefs(prefs: Partial<UserPrefs>): Promise<void> {
+  const current = await getPrefs();
+  const normalized = normalizePrefs({ ...current, ...prefs });
+  await setStoredPrefs('local', normalized);
+  await removeStoredPrefs('sync').catch(() => undefined);
+}
+
 export function watchPrefs(cb: (prefs: UserPrefs) => void): () => void {
   const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area === 'sync' && changes['prefs']) {
-      const newVal = changes['prefs'].newValue as Partial<UserPrefs>;
-      cb({ ...DEFAULT_PREFS, ...newVal });
+    if (area === 'local' && changes[PREFS_KEY]) {
+      cb(normalizePrefs(changes[PREFS_KEY].newValue as Partial<UserPrefs> | undefined));
     }
   };
   chrome.storage.onChanged.addListener(listener);

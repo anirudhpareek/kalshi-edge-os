@@ -5,12 +5,12 @@ import { DEFAULT_PREFS, blocksForMode } from '../lib/types';
 
 const BLOCK_LABELS: Record<string, string> = {
   intelligence: 'Market Intelligence',
-  outcomes: 'All Outcomes',
+  outcomes: 'Event Markets',
   context: 'Context (News)',
   thesis: 'My Thesis',
   related: 'Related Markets',
   alerts: 'Alerts',
-  review: 'Review / Learn',
+  review: 'Review Journal',
 };
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -69,7 +69,7 @@ export default function Options() {
     <div className={`kil-options-root ${prefs.theme === 'light' ? 'light' : ''}`}>
       <div className="kil-options-container">
         <div className="kil-options-header">
-          <h1>Kalshi Edge OS</h1>
+          <h1>Kalshi Intelligence Layer</h1>
           <p>Settings and preferences</p>
           {saved && (
             <p style={{ color: '#00c896', marginTop: 4, fontSize: 12 }}>Settings saved</p>
@@ -97,8 +97,8 @@ export default function Options() {
           </div>
           <div className="kil-options-row">
             <div className="kil-options-label">
-              <strong>Mode</strong>
-              <span>Quick Trade, Deep Analysis, or Review/Learning layout</span>
+              <strong>Workspace</strong>
+              <span>Primary market workflow or retrospective review layout</span>
             </div>
             <select
               className="kil-options-select"
@@ -109,9 +109,8 @@ export default function Options() {
                 void save({ mode, blocks: blocksForMode(mode) });
               }}
             >
-              <option value="quick">Quick Trade</option>
-              <option value="deep">Deep Analysis</option>
-              <option value="review">Review / Learn</option>
+              <option value="analyze">Analyze</option>
+              <option value="review">Review</option>
             </select>
           </div>
         </div>

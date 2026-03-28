@@ -750,13 +750,16 @@
 
 .kil-outcomes-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
 .kil-outcomes-count {
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
@@ -765,75 +768,143 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
-  background: var(--panel-bg);
-  padding: 2px 6px;
-  border-radius: 3px;
+  background: var(--panel-surface);
+  border: 1px solid var(--panel-border);
+  padding: 5px 9px;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .kil-sum-badge.warning {
   color: var(--accent-warn);
   background: rgba(240, 160, 0, 0.12);
+  border-color: rgba(240, 160, 0, 0.18);
 }
 
 .kil-arbitrage-hint {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--accent-warn);
   background: rgba(240, 160, 0, 0.08);
-  padding: 6px 8px;
-  border-radius: 4px;
-  margin-bottom: 10px;
-  line-height: 1.4;
+  border: 1px solid rgba(240, 160, 0, 0.12);
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  line-height: 1.45;
 }
 
 .kil-outcomes-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
 }
 
 .kil-outcome-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  border-bottom: 1px solid var(--panel-border);
-  transition: background var(--transition);
-}
-
-.kil-outcome-row:last-child {
-  border-bottom: none;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.01));
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
 }
 
 .kil-outcome-row:hover {
   background: var(--panel-hover);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .kil-outcome-row.current {
-  background: var(--accent-dim);
-  border-left: 2px solid var(--accent);
-  margin-left: -2px;
-}
-
-.kil-outcome-prob {
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  width: 46px;
-  flex-shrink: 0;
-  text-align: right;
-  color: var(--text-primary);
+  background: linear-gradient(180deg, rgba(0, 200, 150, 0.12), rgba(0, 200, 150, 0.08));
+  border-color: rgba(0, 200, 150, 0.28);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .kil-outcome-rank {
   font-size: 10px;
+  font-weight: 700;
   color: var(--text-muted);
-  width: 22px;
+  letter-spacing: 0.08em;
+  padding-top: 2px;
+}
+
+.kil-outcome-main {
+  min-width: 0;
+}
+
+.kil-outcome-topline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.kil-outcome-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.kil-outcome-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.kil-outcome-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.kil-outcome-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.kil-outcome-pill-current {
+  color: var(--accent);
+  background: rgba(0, 200, 150, 0.1);
+  border-color: rgba(0, 200, 150, 0.18);
+}
+
+.kil-outcome-metrics {
+  min-width: 68px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.kil-outcome-prob {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.kil-outcome-prob-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .kil-outcome-bar-wrap {
-  margin-top: 3px;
-  height: 4px;
+  margin-top: 9px;
+  height: 6px;
   border-radius: 999px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
@@ -842,26 +913,36 @@
 
 .kil-outcome-bar-fill {
   height: 100%;
-  background: var(--accent);
-  opacity: 0.8;
+  background: linear-gradient(90deg, rgba(0, 200, 150, 0.78), rgba(71, 226, 184, 0.96));
+  box-shadow: 0 0 18px rgba(0, 200, 150, 0.2);
 }
 
-.kil-outcome-title {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-primary);
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.kil-outcome-row.current .kil-outcome-rank {
+  color: var(--accent);
 }
 
-.kil-outcome-spread {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  width: 34px;
+.kil-outcome-row.current .kil-outcome-prob {
+  color: var(--accent);
+}
+
+.kil-outcome-row.current .kil-outcome-bar-wrap {
+  border-color: rgba(0, 200, 150, 0.18);
+}
+
+.kil-outcome-row.current .kil-outcome-bar-fill {
+  background: linear-gradient(90deg, rgba(0, 200, 150, 0.92), rgba(111, 243, 210, 1));
+}
+
+.kil-outcome-row.current .kil-outcome-pill:not(.kil-outcome-pill-current) {
+  border-color: rgba(0, 200, 150, 0.15);
+}
+
+.kil-outcomes-list .kil-outcome-row + .kil-outcome-row {
+  margin-top: 0;
+}
+
+.kil-outcome-metrics,
+.kil-sum-badge {
   text-align: right;
 }
 

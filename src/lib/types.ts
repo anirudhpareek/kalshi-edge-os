@@ -149,7 +149,7 @@ export interface Alert {
 
 export type BlockType = 'intelligence' | 'outcomes' | 'context' | 'thesis' | 'related' | 'alerts' | 'review';
 export type BlockSize = 'small' | 'medium' | 'large';
-export type WorkMode = 'quick' | 'deep' | 'review';
+export type WorkMode = 'analyze' | 'review';
 
 export interface BlockConfig {
   id: BlockType;
@@ -173,28 +173,16 @@ export interface UserPrefs {
 
 export const DEFAULT_BLOCKS: BlockConfig[] = [
   { id: 'intelligence', visible: true,  size: 'medium', order: 0 },
-  { id: 'outcomes',     visible: true,  size: 'small',  order: 1 },
-  { id: 'context',      visible: true,  size: 'medium', order: 2 },
-  { id: 'thesis',       visible: true,  size: 'medium', order: 3 },
+  { id: 'thesis',       visible: true,  size: 'medium', order: 1 },
+  { id: 'outcomes',     visible: true,  size: 'small',  order: 2 },
+  { id: 'context',      visible: true,  size: 'medium', order: 3 },
   { id: 'related',      visible: true,  size: 'small',  order: 4 },
   { id: 'alerts',       visible: true,  size: 'small',  order: 5 },
   { id: 'review',       visible: false, size: 'medium', order: 6 },
 ];
 
-export const DEFAULT_PREFS: UserPrefs = {
-  panelOpen: true,
-  panelWidth: 380,
-  theme: 'system',
-  mode: 'deep',
-  blocks: DEFAULT_BLOCKS,
-  llmEnabled: false,
-  llmApiKey: '',
-  pollingIntervalSeconds: 30,
-};
-
 const MODE_BLOCKS: Record<WorkMode, BlockType[]> = {
-  quick: ['intelligence', 'alerts'],
-  deep: ['intelligence', 'outcomes', 'context', 'related', 'alerts', 'thesis'],
+  analyze: ['intelligence', 'thesis', 'outcomes', 'context', 'related', 'alerts'],
   review: ['review', 'thesis'],
 };
 
@@ -213,6 +201,83 @@ export function blocksForMode(mode: WorkMode): BlockConfig[] {
     };
   }).sort((a, b) => a.order - b.order);
 }
+
+export type StoredWorkMode = WorkMode | 'quick' | 'deep';
+
+type StoredPrefs = Partial<Omit<UserPrefs, 'mode' | 'blocks'>> & {
+  mode?: StoredWorkMode | string;
+  blocks?: unknown;
+};
+
+function isBlockType(value: unknown): value is BlockType {
+  return DEFAULT_BLOCKS.some((block) => block.id === value);
+}
+
+function isBlockSize(value: unknown): value is BlockSize {
+  return value === 'small' || value === 'medium' || value === 'large';
+}
+
+export function normalizeMode(mode: unknown): WorkMode {
+  return mode === 'review' ? 'review' : 'analyze';
+}
+
+export function normalizeBlocks(blocks: unknown, mode: WorkMode): BlockConfig[] {
+  if (!Array.isArray(blocks)) {
+    return blocksForMode(mode);
+  }
+
+  const presetById = new Map(blocksForMode(mode).map((block) => [block.id, block]));
+  const storedById = new Map<BlockType, Partial<BlockConfig>>();
+
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue;
+    const candidate = block as Partial<BlockConfig>;
+    if (!isBlockType(candidate.id)) continue;
+    storedById.set(candidate.id, candidate);
+  }
+
+  if (storedById.size === 0) {
+    return blocksForMode(mode);
+  }
+
+  return DEFAULT_BLOCKS.map((block) => {
+    const preset = presetById.get(block.id) ?? block;
+    const stored = storedById.get(block.id);
+    return {
+      ...preset,
+      visible: typeof stored?.visible === 'boolean' ? stored.visible : preset.visible,
+      size: isBlockSize(stored?.size) ? stored.size : preset.size,
+      order: typeof stored?.order === 'number' ? stored.order : preset.order,
+    };
+  }).sort((a, b) => a.order - b.order);
+}
+
+export function normalizePrefs(stored?: StoredPrefs | null): UserPrefs {
+  const mode = normalizeMode(stored?.mode);
+  const legacyMode = stored?.mode === 'quick' || stored?.mode === 'deep';
+
+  return {
+    panelOpen: typeof stored?.panelOpen === 'boolean' ? stored.panelOpen : true,
+    panelWidth: typeof stored?.panelWidth === 'number' ? stored.panelWidth : 380,
+    theme:
+      stored?.theme === 'light' || stored?.theme === 'dark' || stored?.theme === 'system'
+        ? stored.theme
+        : 'system',
+    mode,
+    blocks: legacyMode ? blocksForMode(mode) : normalizeBlocks(stored?.blocks, mode),
+    llmEnabled: typeof stored?.llmEnabled === 'boolean' ? stored.llmEnabled : false,
+    llmApiKey: typeof stored?.llmApiKey === 'string' ? stored.llmApiKey : '',
+    pollingIntervalSeconds:
+      typeof stored?.pollingIntervalSeconds === 'number'
+        ? stored.pollingIntervalSeconds
+        : 30,
+  };
+}
+
+export const DEFAULT_PREFS: UserPrefs = normalizePrefs({
+  mode: 'analyze',
+  blocks: DEFAULT_BLOCKS,
+});
 
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
